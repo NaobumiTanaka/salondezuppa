@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Salon de Zuppa 投稿文ジェネレーター</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap');
+  :root{
+    --paper:#F7F1E6;
+    --paper-deep:#EFE6D4;
+    --ink:#2B2620;
+    --ink-soft:#6B6356;
+    --persimmon:#B5562F;
+    --persimmon-deep:#8F4423;
+    --moss:#6E7A52;
+    --board:#3B332B;
+    --board-line:#4A4038;
+    --washi:#E3C56B;
+    --line:#D8CDB4;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;padding:16px;background:#f0ebe0;}
+  .zuppa-app{
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    color:var(--ink);
+    background:var(--paper);
+    background-image:
+      radial-gradient(circle at 0 0, rgba(0,0,0,0.015) 1px, transparent 1px),
+      radial-gradient(circle at 12px 12px, rgba(0,0,0,0.015) 1px, transparent 1px);
+    background-size:24px 24px;
+    border-radius:18px;
+    padding:0;
+    max-width:920px;
+    margin:0 auto;
+    overflow:hidden;
+    border:1px solid var(--line);
+  }
+  .zuppa-header{
+    padding:32px 32px 22px;
+    border-bottom:1px dashed var(--line);
+    position:relative;
+  }
+  .zuppa-eyebrow{
+    font-size:12px;
+    letter-spacing:0.18em;
+    color:var(--persimmon-deep);
+    font-weight:700;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .zuppa-eyebrow::before{
+    content:"";
+    width:14px;height:1px;background:var(--persimmon-deep);
+  }
+  .zuppa-title{
+    font-family:'Shippori Mincho B1', serif;
+    font-weight:800;
+    font-size:30px;
+    margin:10px 0 6px;
+    letter-spacing:0.02em;
+  }
+  .zuppa-sub{
+    font-size:13px;
+    color:var(--ink-soft);
+    line-height:1.7;
+  }
+  .zuppa-body{
+    padding:26px 32px 36px;
+    display:grid;
+    grid-template-columns:1fr;
+    gap:28px;
+  }
+  @media (min-width:760px){
+    .zuppa-body{grid-template-columns:300px 1fr;}
+  }
+  /* --- Profile / setup panel --- */
+  .panel{
+    background:var(--paper-deep);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:18px 18px 20px;
+  }
+  .panel-title{
+    font-family:'Shippori Mincho B1', serif;
+    font-weight:700;
+    font-size:15px;
+    margin:0 0 4px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .panel-title button{
+    font-size:11px;
+    color:var(--persimmon-deep);
+    background:none;
+    border:none;
+    cursor:pointer;
+    font-family:inherit;
+    text-decoration:underline;
+    padding:0;
+  }
+  .panel-hint{
+    font-size:11.5px;
+    color:var(--ink-soft);
+    margin:0 0 12px;
+    line-height:1.6;
+  }
+  .field{margin-bottom:10px;}
+  .field label{
+    display:block;
+    font-size:11px;
+    color:var(--ink-soft);
+    margin-bottom:4px;
+    font-weight:500;
+  }
+  .field input, .field textarea{
+    width:100%;
+    font-family:inherit;
+    font-size:13px;
+    padding:8px 10px;
+    border:1px solid var(--line);
+    border-radius:7px;
+    background:#fff;
+    color:var(--ink);
+    resize:vertical;
+  }
+  .field input:focus, .field textarea:focus, .gen-input textarea:focus{
+    outline:2px solid var(--persimmon);
+    outline-offset:1px;
+  }
+  .profile-readonly{
+    font-size:12.5px;
+    line-height:1.8;
+    color:var(--ink);
+  }
+  .profile-readonly .row{margin-bottom:6px;}
+  .profile-readonly .row span.k{
+    color:var(--ink-soft);
+    font-size:10.5px;
+    display:block;
+  }
+  .btn{
+    font-family:inherit;
+    font-size:12.5px;
+    font-weight:700;
+    border-radius:7px;
+    border:none;
+    padding:8px 14px;
+    cursor:pointer;
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .btn:active{transform:translateY(1px);}
+  .btn-primary{background:var(--persimmon); color:#fff;}
+  .btn-primary:hover{background:var(--persimmon-deep);}
+  .btn-ghost{background:transparent; color:var(--ink-soft); border:1px solid var(--line);}
+  .btn-ghost:hover{border-color:var(--persimmon);}
+  .btn:disabled{opacity:0.55; cursor:not-allowed;}
+  /* --- Generator section --- */
+  .gen-input textarea{
+    width:100%;
+    min-height:78px;
+    font-family:inherit;
+    font-size:14px;
+    padding:12px 14px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    background:#fff;
+    line-height:1.6;
+  }
+  .event-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:10px;
+    align-items:center;
+  }
+  .event-field{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:6px 10px;
+  }
+  .event-field label{
+    font-size:11px;
+    color:var(--ink-soft);
+    font-weight:500;
+    white-space:nowrap;
+  }
+  .event-field input{
+    font-family:inherit;
+    font-size:13px;
+    border:none;
+    outline:none;
+    color:var(--ink);
+    width:120px;
+  }
+  .event-field.time input{width:110px;}
+  .event-clear{
+    font-size:11px;
+    color:var(--ink-soft);
+    background:none;
+    border:none;
+    text-decoration:underline;
+    cursor:pointer;
+    padding:0 4px;
+  }
+  .gen-row{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:10px;
+    margin-top:12px;
+  }
+  .tone-group{display:flex; gap:6px; flex-wrap:wrap;}
+  .tone-chip{
+    font-family:inherit;
+    font-size:12px;
+    padding:6px 12px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:#fff;
+    cursor:pointer;
+    color:var(--ink-soft);
+  }
+  .tone-chip.active{
+    background:var(--ink);
+    color:var(--paper);
+    border-color:var(--ink);
+  }
+  .gen-cta{margin-left:auto;}
+  .status-line{
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-top:10px;
+    min-height:16px;
+  }
+  .status-line.error{color:var(--persimmon-deep);}
+  /* --- Result cards (memo / index card signature) --- */
+  .results{
+    margin-top:22px;
+    display:grid;
+    gap:16px;
+  }
+  .memo-card{
+    background:#FFFDF8;
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:18px 18px 16px;
+    position:relative;
+    box-shadow:0 2px 0 rgba(0,0,0,0.03), 0 8px 18px -12px rgba(0,0,0,0.25);
+  }
+  .memo-card::before{
+    content:"";
+    position:absolute;
+    top:-7px; left:24px;
+    width:46px; height:16px;
+    background:var(--washi);
+    opacity:0.85;
+    transform:rotate(-3deg);
+    box-shadow:0 1px 2px rgba(0,0,0,0.15);
+  }
+  .memo-card:nth-child(2){transform:rotate(0.4deg);}
+  .memo-card:nth-child(3){transform:rotate(-0.5deg);}
+  .memo-angle{
+    font-size:10.5px;
+    letter-spacing:0.08em;
+    color:var(--moss);
+    font-weight:700;
+    margin:6px 0 8px;
+    text-transform:uppercase;
+  }
+  .memo-text{
+    font-size:14px;
+    line-height:1.85;
+    white-space:pre-wrap;
+    margin:0 0 14px;
+  }
+  .memo-actions{
+    display:flex;
+    gap:8px;
+    justify-content:flex-end;
+  }
+  .memo-subject{
+    font-family:'Shippori Mincho B1', serif;
+    font-size:15px;
+    font-weight:700;
+    margin:0 0 6px;
+    line-height:1.5;
+  }
+  .fixed-preview{
+    margin-top:14px;
+    background:#FBF3DF;
+    border:1px dashed var(--washi);
+    border-radius:8px;
+    padding:12px 14px;
+    font-size:12px;
+    color:var(--ink-soft);
+    line-height:1.7;
+    white-space:pre-wrap;
+  }
+  .fixed-preview .fp-label{
+    font-size:10.5px;
+    font-weight:700;
+    color:var(--persimmon-deep);
+    letter-spacing:0.04em;
+    display:block;
+    margin-bottom:4px;
+  }
+  /* --- History (corkboard) --- */
+  .board{
+    margin-top:30px;
+    background:var(--board);
+    background-image:
+      radial-gradient(rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size:6px 6px;
+    border-radius:12px;
+    padding:18px 18px 14px;
+  }
+  .board-title{
+    font-family:'Shippori Mincho B1', serif;
+    color:var(--washi);
+    font-size:14px;
+    font-weight:700;
+    margin:0 0 12px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .board-empty{
+    color:#C9BFA8;
+    font-size:12px;
+    padding:10px 2px 6px;
+    line-height:1.7;
+  }
+  .board-list{
+    display:grid;
+    gap:8px;
+  }
+  .pin-item{
+    background:#FFFCF5;
+    border-radius:5px;
+    padding:10px 12px;
+    font-size:12.5px;
+    line-height:1.6;
+    position:relative;
+    color:var(--ink);
+    box-shadow:0 4px 10px -6px rgba(0,0,0,0.6);
+  }
+  .pin-item .pin-dot{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--persimmon);
+    position:absolute;
+    top:-4px;left:14px;
+    box-shadow:0 1px 1px rgba(0,0,0,0.3);
+  }
+  .pin-meta{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:8px;
+    margin-bottom:3px;
+  }
+  .pin-date{font-size:10.5px; color:var(--ink-soft);}
+  .pin-del{
+    background:none; border:none; cursor:pointer;
+    font-size:11px; color:var(--ink-soft);
+    text-decoration:underline;
+    padding:0;
+    flex-shrink:0;
+  }
+  .pin-del:hover{color:var(--persimmon-deep);}
+  .pin-text{color:var(--ink-soft);}
+  .sr-copy-helper{
+    position:absolute;
+    left:-9999px;
+    top:-9999px;
+  }
+  /* --- Calendar / integration panel --- */
+  .cal-panel{margin-top:16px;}
+  .cal-status{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    margin:8px 0 12px;
+  }
+  .cal-dot{
+    width:7px;height:7px;border-radius:50%;
+    background:#C9BFA8;
+    flex-shrink:0;
+  }
+  .cal-dot.connected{background:var(--moss);}
+  .btn-small{font-size:11.5px; padding:6px 12px;}
+  .cal-event-field{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:6px 10px;
+    flex:1 1 180px;
+  }
+  .cal-event-field label{
+    font-size:11px;
+    color:var(--ink-soft);
+    font-weight:500;
+    white-space:nowrap;
+  }
+  .cal-event-field input{
+    font-family:inherit;
+    font-size:13px;
+    border:none;
+    outline:none;
+    color:var(--ink);
+    width:100%;
+  }
+  .cal-add-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:8px;
+    flex-wrap:wrap;
+  }
+  @media (prefers-reduced-motion: reduce){
+    .btn, .memo-card{transition:none;}
+  }
+</style>
+</head>
+<body>
+<div class="zuppa-app">
+  <div class="zuppa-header">
+    <div class="zuppa-eyebrow">SALON DE ZUPPA / ネタ帳</div>
+    <div class="zuppa-title">投稿文ジェネレーター</div>
+    <div class="zuppa-sub">テーマやキーワードを一言入れるだけで、Facebook投稿の下書きを3パターン作ります。何も思いつかない日は空欄のまま「作成する」を押してください。</div>
+  </div>
+  <div class="zuppa-body">
+    <!-- LEFT: profile panel -->
+    <div>
+      <div class="panel" id="profilePanel">
+        <div class="panel-title">
+          <span>施設プロフィール</span>
+          <button id="profileToggle">編集</button>
+        </div>
+        <div class="panel-hint">投稿文の雰囲気のベースになる情報です。一度設定すれば次回から自動で使われます。</div>
+        <div id="profileReadView" class="profile-readonly"></div>
+        <div id="profileEditView" style="display:none;">
+          <div class="field">
+            <label for="pf-name">施設名</label>
+            <input id="pf-name" type="text" placeholder="Salon de Zuppa">
+          </div>
+          <div class="field">
+            <label for="pf-place">場所・エリア</label>
+            <input id="pf-place" type="text" placeholder="例：新潟県十日町市">
+          </div>
+          <div class="field">
+            <label for="pf-desc">どんな空間か（一言）</label>
+            <textarea id="pf-desc" rows="3" placeholder="例：誰でも気軽に立ち寄れる、地域に開かれたレンタルスペース"></textarea>
+          </div>
+          <div class="field">
+            <label for="pf-tone">言葉づかいの好み</label>
+            <textarea id="pf-tone" rows="2" placeholder="例：絵文字は控えめ、敬語だけど堅すぎない"></textarea>
+          </div>
+          <div class="field">
+            <label for="pf-fixed">必ず入れる定型文（料金・連絡先など）</label>
+            <textarea id="pf-fixed" rows="4" placeholder="例：&#10;■ご利用料金&#10;1時間1,000円〜&#10;■ご予約・お問い合わせ&#10;LINEまたはお電話で受付"></textarea>
+          </div>
+          <button class="btn btn-primary" id="profileSave">保存する</button>
+        </div>
+      </div>
+      <div class="panel cal-panel" id="calPanel">
+        <div class="panel-title">
+          <span>📅 Googleカレンダー連携</span>
+          <button id="calToggle">設定</button>
+        </div>
+        <div class="panel-hint">作成したイベントをGoogleカレンダーに直接登録できます。最初に一度だけ設定してください。</div>
+        <div class="cal-status">
+          <span class="cal-dot" id="calDot"></span>
+          <span id="calStatusText">未連携</span>
+        </div>
+        <div id="calEditView" style="display:none;">
+          <div class="field">
+            <label for="cal-client-id">Google OAuthクライアントID</label>
+            <input id="cal-client-id" type="text" placeholder="xxxxxxxx.apps.googleusercontent.com">
+          </div>
+          <div class="field">
+            <label for="cal-calendar-id">カレンダーID</label>
+            <input id="cal-calendar-id" type="text" placeholder="例：xxxx@group.calendar.google.com">
+          </div>
+          <div class="field">
+            <label for="cal-api-key">Anthropic APIキー（GitHub等で単独運用する場合のみ）</label>
+            <input id="cal-api-key" type="password" placeholder="sk-ant-...（Claude.ai上では不要）">
+          </div>
+          <button class="btn btn-primary btn-small" id="calSettingsSave">設定を保存</button>
+        </div>
+        <button class="btn btn-ghost btn-small" id="calConnectBtn" type="button">Googleと連携する</button>
+      </div>
+    </div>
+    <!-- RIGHT: generator + results -->
+    <div>
+      <div class="gen-input">
+        <textarea id="themeInput" placeholder="今日の出来事・伝えたいこと・写真の内容など（空欄でもOK）"></textarea>
+        <div class="event-row">
+          <div class="event-field" style="flex:1 1 220px;">
+            <label for="eventTitle">イベント名</label>
+            <input id="eventTitle" type="text" placeholder="例：ワークショップ「○○」">
+          </div>
+        </div>
+        <div class="event-row">
+          <div class="event-field">
+            <label for="eventDate">開催日</label>
+            <input id="eventDate" type="date">
+          </div>
+          <div class="event-field time">
+            <label for="eventTime">時間</label>
+            <input id="eventTime" type="text" placeholder="10:00〜15:00">
+          </div>
+          <button class="event-clear" id="eventClear" type="button">日時をクリア</button>
+        </div>
+        <div class="cal-add-row">
+          <button class="btn btn-ghost btn-small" id="calAddEventBtn" type="button">📅 Googleカレンダーに登録</button>
+          <span class="status-line" id="calAddStatus" style="margin:0;"></span>
+        </div>
+        <div class="gen-row">
+          <div class="tone-group" id="toneGroup">
+            <button class="tone-chip active" data-tone="温かみ重視">温かみ重視</button>
+            <button class="tone-chip" data-tone="お知らせ・告知">お知らせ・告知</button>
+            <button class="tone-chip" data-tone="ちょっとユーモラス">ユーモラス</button>
+          </div>
+          <button class="btn btn-primary gen-cta" id="generateBtn">作成する</button>
+        </div>
+        <div class="status-line" id="statusLine"></div>
+      </div>
+      <div class="results" id="results"></div>
+      <div class="fixed-preview" id="fixedPreview" style="display:none;"></div>
+      <div class="board">
+        <div class="board-title">📌 これまでの投稿メモ</div>
+        <div id="boardList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<textarea class="sr-copy-helper" id="copyHelper" aria-hidden="true"></textarea>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+(function(){
+  const els = {
+    profileReadView: document.getElementById('profileReadView'),
+    profileEditView: document.getElementById('profileEditView'),
+    profileToggle: document.getElementById('profileToggle'),
+    profileSave: document.getElementById('profileSave'),
+    pfName: document.getElementById('pf-name'),
+    pfPlace: document.getElementById('pf-place'),
+    pfDesc: document.getElementById('pf-desc'),
+    pfTone: document.getElementById('pf-tone'),
+    pfFixed: document.getElementById('pf-fixed'),
+    themeInput: document.getElementById('themeInput'),
+    eventDate: document.getElementById('eventDate'),
+    eventTime: document.getElementById('eventTime'),
+    eventClear: document.getElementById('eventClear'),
+    toneGroup: document.getElementById('toneGroup'),
+    generateBtn: document.getElementById('generateBtn'),
+    statusLine: document.getElementById('statusLine'),
+    results: document.getElementById('results'),
+    fixedPreview: document.getElementById('fixedPreview'),
+    boardList: document.getElementById('boardList'),
+    copyHelper: document.getElementById('copyHelper'),
+    eventTitle: document.getElementById('eventTitle'),
+    calToggle: document.getElementById('calToggle'),
+    calEditView: document.getElementById('calEditView'),
+    calClientId: document.getElementById('cal-client-id'),
+    calCalendarId: document.getElementById('cal-calendar-id'),
+    calApiKey: document.getElementById('cal-api-key'),
+    calSettingsSave: document.getElementById('calSettingsSave'),
+    calConnectBtn: document.getElementById('calConnectBtn'),
+    calDot: document.getElementById('calDot'),
+    calStatusText: document.getElementById('calStatusText'),
+    calAddEventBtn: document.getElementById('calAddEventBtn'),
+    calAddStatus: document.getElementById('calAddStatus'),
+  };
+  const storage = window.storage ? window.storage : {
+    async get(key){
+      const v = localStorage.getItem(key);
+      if(v === null){ throw new Error('key not found: ' + key); }
+      return { key, value: v };
+    },
+    async set(key, value){
+      localStorage.setItem(key, value);
+      return { key, value };
+    },
+    async delete(key){
+      localStorage.removeItem(key);
+      return { key, deleted: true };
+    },
+  };
+  let profile = { name:'Salon de Zuppa', place:'', desc:'', tone:'', fixedNotice:'' };
+  let history = [];
+  let currentItems = [];
+  let selectedTone = '温かみ重視';
+  let calSettings = { clientId:'', calendarId:'627cgebu90hqut878j7rkr9cq4@group.calendar.google.com', apiKey:'' };
+  let tokenClient = null;
+  let accessToken = null;
+  function escapeHtml(s){
+    return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  async function loadProfile(){
+    try{
+      const r = await storage.get('zuppa:profile');
+      if(r && r.value){ profile = JSON.parse(r.value); }
+    }catch(e){ /* no profile saved yet */ }
+    renderProfileRead();
+  }
+  async function loadHistory(){
+    try{
+      const r = await storage.get('zuppa:history');
+      if(r && r.value){ history = JSON.parse(r.value); }
+    }catch(e){ history = []; }
+    renderHistory();
+  }
+  function renderProfileRead(){
+    const hasAny = profile.name || profile.place || profile.desc || profile.tone || profile.fixedNotice;
+    if(!hasAny){
+      els.profileReadView.innerHTML = '<div style="font-size:12px;color:var(--ink-soft);">まだ設定されていません。「編集」から入力してください。</div>';
+      els.profileReadView.style.display = 'block';
+      els.profileEditView.style.display = 'none';
+      return;
+    }
+    els.profileReadView.innerHTML = `
+      <div class="row"><span class="k">施設名</span>${escapeHtml(profile.name)||'—'}</div>
+      <div class="row"><span class="k">場所</span>${escapeHtml(profile.place)||'—'}</div>
+      <div class="row"><span class="k">空間の説明</span>${escapeHtml(profile.desc)||'—'}</div>
+      <div class="row"><span class="k">言葉づかい</span>${escapeHtml(profile.tone)||'—'}</div>
+      <div class="row"><span class="k">必須の定型文</span>${profile.fixedNotice ? escapeHtml(profile.fixedNotice) : '未設定'}</div>
+    `;
+    els.profileReadView.style.display = 'block';
+    els.profileEditView.style.display = 'none';
+  }
+  function openProfileEdit(){
+    els.pfName.value = profile.name||'';
+    els.pfPlace.value = profile.place||'';
+    els.pfDesc.value = profile.desc||'';
+    els.pfTone.value = profile.tone||'';
+    els.pfFixed.value = profile.fixedNotice||'';
+    els.profileReadView.style.display = 'none';
+    els.profileEditView.style.display = 'block';
+  }
+  els.profileToggle.addEventListener('click', openProfileEdit);
+  els.profileSave.addEventListener('click', async ()=>{
+    profile = {
+      name: els.pfName.value.trim(),
+      place: els.pfPlace.value.trim(),
+      desc: els.pfDesc.value.trim(),
+      tone: els.pfTone.value.trim(),
+      fixedNotice: els.pfFixed.value.trim(),
+    };
+    try{
+      await storage.set('zuppa:profile', JSON.stringify(profile));
+    }catch(e){ console.error('profile save failed', e); }
+    renderProfileRead();
+  });
+  els.toneGroup.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.tone-chip');
+    if(!btn) return;
+    selectedTone = btn.dataset.tone;
+    [...els.toneGroup.children].forEach(c => c.classList.toggle('active', c===btn));
+  });
+  async function loadCalSettings(){
+    try{
+      const r = await storage.get('zuppa:calSettings');
+      if(r && r.value){ calSettings = { ...calSettings, ...JSON.parse(r.value) }; }
+    }catch(e){ /* not set yet, keep defaults */ }
+    els.calCalendarId.value = calSettings.calendarId || '';
+    els.calClientId.value = calSettings.clientId || '';
+    els.calApiKey.value = calSettings.apiKey || '';
+    setupTokenClient();
+  }
+  els.calToggle.addEventListener('click', ()=>{
+    const showing = els.calEditView.style.display !== 'none';
+    els.calEditView.style.display = showing ? 'none' : 'block';
+  });
+  els.calSettingsSave.addEventListener('click', async ()=>{
+    calSettings = {
+      clientId: els.calClientId.value.trim(),
+      calendarId: els.calCalendarId.value.trim() || calSettings.calendarId,
+      apiKey: els.calApiKey.value.trim(),
+    };
+    try{ await storage.set('zuppa:calSettings', JSON.stringify(calSettings)); }catch(e){}
+    setupTokenClient();
+    els.calEditView.style.display = 'none';
+    setCalStatus(false, '設定を保存しました。「Googleと連携する」を押して接続してください。');
+  });
+  function setCalStatus(connected, text){
+    els.calDot.classList.toggle('connected', !!connected);
+    els.calStatusText.textContent = text;
+  }
+  function setupTokenClient(){
+    if(!window.google || !google.accounts || !google.accounts.oauth2){
+      setCalStatus(false, 'Google連携の準備中…（クライアントIDを設定してください）');
+      return;
+    }
+    if(!calSettings.clientId){
+      setCalStatus(false, '未連携（クライアントIDを設定してください）');
+      return;
+    }
+    try{
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: calSettings.clientId,
+        scope: 'https://www.googleapis.com/auth/calendar.events',
+        callback: (resp)=>{
+          if(resp && resp.access_token){
+            accessToken = resp.access_token;
+            setCalStatus(true, '連携済み（このブラウザのセッション中のみ有効）');
+          }else{
+            setCalStatus(false, '連携に失敗しました。もう一度お試しください。');
+          }
+        },
+      });
+      setCalStatus(!!accessToken, accessToken ? '連携済み' : '未連携（「Googleと連携する」を押してください）');
+    }catch(e){
+      console.error(e);
+      setCalStatus(false, '連携の準備に失敗しました。クライアントIDを確認してください。');
+    }
+  }
+  els.calConnectBtn.addEventListener('click', ()=>{
+    if(!calSettings.clientId){
+      els.calEditView.style.display = 'block';
+      setCalStatus(false, 'まずクライアントIDを設定してください。');
+      return;
+    }
+    if(!tokenClient){ setupTokenClient(); }
+    if(tokenClient){ tokenClient.requestAccessToken(); }
+  });
+  function parseTimeRange(timeStr){
+    const matches = (timeStr || '').match(/(\d{1,2}):(\d{2})/g) || [];
+    if(matches.length === 0) return null;
+    const toParts = (t) => { const [h,m] = t.split(':').map(Number); return {h,m}; };
+    return { start: toParts(matches[0]), end: matches[1] ? toParts(matches[1]) : null };
+  }
+  function pad2(n){ return String(n).padStart(2,'0'); }
+  function buildCalendarEvent(){
+    const dateStr = els.eventDate.value;
+    if(!dateStr){ return { error: '開催日を入力してください。' }; }
+    const title = els.eventTitle.value.trim() || els.themeInput.value.trim().slice(0,40) || 'イベント';
+    const description = els.themeInput.value.trim();
+    const range = parseTimeRange(els.eventTime.value);
+    if(!range){
+      const d = new Date(dateStr + 'T00:00:00');
+      d.setDate(d.getDate() + 1);
+      const endDateStr = `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+      return {
+        event: {
+          summary: title,
+          description: description,
+          start: { date: dateStr },
+          end: { date: endDateStr },
+        },
+      };
+    }
+    const startDT = `${dateStr}T${pad2(range.start.h)}:${pad2(range.start.m)}:00`;
+    let endDT;
+    if(range.end){
+      endDT = `${dateStr}T${pad2(range.end.h)}:${pad2(range.end.m)}:00`;
+    }else{
+      let endH = range.start.h + 1;
+      endDT = `${dateStr}T${pad2(endH)}:${pad2(range.start.m)}:00`;
+    }
+    return {
+      event: {
+        summary: title,
+        description: description,
+        start: { dateTime: startDT, timeZone: 'Asia/Tokyo' },
+        end: { dateTime: endDT, timeZone: 'Asia/Tokyo' },
+      },
+    };
+  }
+  els.calAddEventBtn.addEventListener('click', async ()=>{
+    els.calAddStatus.classList.remove('error');
+    if(!accessToken){
+      els.calAddStatus.textContent = '先にGoogleと連携してください。';
+      els.calAddStatus.classList.add('error');
+      return;
+    }
+    const built = buildCalendarEvent();
+    if(built.error){
+      els.calAddStatus.textContent = built.error;
+      els.calAddStatus.classList.add('error');
+      return;
+    }
+    if(!calSettings.calendarId){
+      els.calAddStatus.textContent = 'カレンダーIDを設定してください。';
+      els.calAddStatus.classList.add('error');
+      return;
+    }
+    els.calAddEventBtn.disabled = true;
+    els.calAddStatus.textContent = '登録中…';
+    try{
+      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calSettings.calendarId)}/events`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + accessToken,
+        },
+        body: JSON.stringify(built.event),
+      });
+      if(!res.ok){
+        const errBody = await res.text();
+        throw new Error('Calendar API error ' + res.status + ' ' + errBody);
+      }
+      els.calAddStatus.textContent = '✅ カレンダーに登録しました。';
+    }catch(err){
+      console.error(err);
+      els.calAddStatus.textContent = '登録に失敗しました。連携状態とカレンダーIDを確認してください。';
+      els.calAddStatus.classList.add('error');
+    }finally{
+      els.calAddEventBtn.disabled = false;
+    }
+  });
+  els.eventClear.addEventListener('click', ()=>{
+    els.eventDate.value = '';
+    els.eventTime.value = '';
+  });
+  function formatEventDate(dateStr){
+    if(!dateStr) return '';
+    const d = new Date(dateStr + 'T00:00:00');
+    if(isNaN(d.getTime())) return '';
+    const youbi = ['日','月','火','水','木','金','土'][d.getDay()];
+    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日(${youbi})`;
+  }
+  function renderHistory(){
+    if(!history.length){
+      els.boardList.innerHTML = '<div class="board-empty">まだメモはありません。投稿文を作って「コルクボードに留める」を押すと、ここに記録されます。</div>';
+      return;
+    }
+    const sorted = [...history].sort((a,b)=> b.ts - a.ts);
+    els.boardList.innerHTML = sorted.map(item => `
+      <div class="pin-item" data-id="${item.id}">
+        <span class="pin-dot"></span>
+        <div class="pin-meta">
+          <span class="pin-date">${escapeHtml(item.date)}　${escapeHtml(item.tone||'')}${item.eventLine ? '　📅 '+escapeHtml(item.eventLine) : ''}</span>
+          <button class="pin-del" data-id="${item.id}">削除</button>
+        </div>
+        <div class="pin-text">${escapeHtml(item.subject ? item.subject : (item.theme || '（ネタ出しモード）'))} ／ ${escapeHtml((item.caption||'').slice(0,40))}${(item.caption||'').length>40?'…':''}</div>
+      </div>
+    `).join('');
+  }
+  els.boardList.addEventListener('click', async (e)=>{
+    const btn = e.target.closest('.pin-del');
+    if(!btn) return;
+    const id = btn.dataset.id;
+    history = history.filter(h => String(h.id) !== String(id));
+    try{ await storage.set('zuppa:history', JSON.stringify(history)); }catch(err){}
+    renderHistory();
+  });
+  function setStatus(msg, isError){
+    els.statusLine.textContent = msg || '';
+    els.statusLine.classList.toggle('error', !!isError);
+  }
+  function buildPrompt(themeRaw){
+    const theme = themeRaw.trim();
+    const recent = [...history].sort((a,b)=>b.ts-a.ts).slice(0,6)
+      .map(h => `- ${h.subject || h.theme || '(ネタ出し)'}：${(h.caption||'').slice(0,60)}`).join('\n') || '（まだ履歴なし）';
+    const profileText = `
+施設名: ${profile.name || 'Salon de Zuppa'}
+場所: ${profile.place || '未設定'}
+空間の説明: ${profile.desc || '未設定'}
+言葉づかいの好み: ${profile.tone || '特になし'}`.trim();
+    const dateLabel = formatEventDate(els.eventDate.value);
+    const timeLabel = els.eventTime.value.trim();
+    let eventLine = '';
+    if(dateLabel || timeLabel){
+      eventLine = `${dateLabel}${dateLabel && timeLabel ? ' ' : ''}${timeLabel}`.trim();
+    }
+    const hasFixedNotice = !!(profile.fixedNotice && profile.fixedNotice.trim());
+    const system = `あなたは日本のレンタルスペース「${profile.name || 'Salon de Zuppa'}」のSNS担当者です。Facebookに投稿するキャプション文の候補を作成します。
+出力は次のJSON配列のみを返してください。前置き・後置き・コードブロック記号は一切含めないでください。
+[{"subject":"投稿の件名・見出し（15〜25文字程度の短いキャッチコピー。本文とは別表示なので本文と同じ文を繰り返さないこと）","angle":"切り口を表す短い日本語ラベル","caption":"投稿文本体"}]
+配列の要素数は必ず3つにしてください。
+各captionは150〜220文字程度、絵文字は使うなら1〜2個までに控え、最後に軽い呼びかけや一文を入れてください。
+3つの候補はそれぞれ異なる切り口（例：体験談風／お知らせ風／問いかけ風 など）にしてください。
+直近の投稿履歴と同じ切り口・同じ言い回しを避けてください。${eventLine ? `
+今回はイベントの告知です。「${eventLine}」という日時情報を、3つの候補すべてに分かりやすい形で必ず入れてください（省略・曖昧化しないこと）。日付と時間が読み手にひと目で伝わるようにしてください。` : ''}${hasFixedNotice ? `
+この投稿には、料金・連絡先などの定型文がcaptionの末尾に別途自動で追加されます（あなたは生成しません）。そのため、caption本文では具体的な料金や電話番号などを新たに作り出さないでください。本文は「詳細は下記をご覧ください」のように定型文への自然な導線で終えて構いません。料金や連絡先そのものの文言は書かないでください。` : ''}`;
+    let userMsg;
+    if(theme){
+      userMsg = `【施設情報】\n${profileText}\n\n【トーン指定】${selectedTone}\n${eventLine ? `【イベント日時】${eventLine}\n` : ''}\n【直近の投稿履歴（重複回避用）】\n${recent}\n\n【今回投稿したい内容・テーマ】\n${theme}\n\n上記テーマに基づいて投稿文を3パターン作成してください。`;
+    }else{
+      userMsg = `【施設情報】\n${profileText}\n\n【トーン指定】${selectedTone}\n${eventLine ? `【イベント日時】${eventLine}\n` : ''}\n【直近の投稿履歴（重複回避用）】\n${recent}\n\n特定のテーマ指定はありません。季節感や、レンタルスペース運営でよくある話題（利用シーン、空間の魅力、地域とのつながり、利用者へのお礼や呼びかけなど）から、ネタを自分で考えて投稿文を3パターン作成してください。`;
+    }
+    return { system, userMsg, eventLine };
+  }
+  function parseResponse(data){
+    const text = (data.content||[])
+      .filter(b => b.type === 'text')
+      .map(b => b.text).join('\n').trim();
+    const cleaned = text.replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+    const parsed = JSON.parse(cleaned);
+    if(!Array.isArray(parsed)) throw new Error('not an array');
+    return parsed;
+  }
+  function buildFinalText(item){
+    const parts = [];
+    if(item.subject) parts.push(item.subject.trim());
+    parts.push((item.caption||'').trim());
+    if(profile.fixedNotice && profile.fixedNotice.trim()){
+      parts.push(profile.fixedNotice.trim());
+    }
+    return parts.filter(Boolean).join('\n\n');
+  }
+  function renderResults(items, theme, eventLine){
+    currentItems = items;
+    els.results.innerHTML = items.map((item, i) => `
+      <div class="memo-card">
+        <div class="memo-angle">${escapeHtml(item.angle||'候補'+(i+1))}</div>
+        <p class="memo-subject">${escapeHtml(item.subject||'')}</p>
+        <p class="memo-text">${escapeHtml(item.caption||'')}</p>
+        <div class="memo-actions">
+          <button class="btn btn-ghost copy-btn" data-index="${i}">コピー</button>
+          <button class="btn btn-primary save-btn" data-index="${i}">コルクボードに留める</button>
+        </div>
+      </div>
+    `).join('');
+    els.results.dataset.theme = theme || '';
+    els.results.dataset.eventLine = eventLine || '';
+    if(profile.fixedNotice && profile.fixedNotice.trim()){
+      els.fixedPreview.style.display = 'block';
+      els.fixedPreview.innerHTML = '<span class="fp-label">📎 コピー時に末尾へ自動追加される定型文</span>' + escapeHtml(profile.fixedNotice.trim());
+    }else{
+      els.fixedPreview.style.display = 'none';
+    }
+  }
+  els.results.addEventListener('click', async (e)=>{
+    const copyBtn = e.target.closest('.copy-btn');
+    const saveBtn = e.target.closest('.save-btn');
+    if(copyBtn){
+      const item = currentItems[Number(copyBtn.dataset.index)];
+      if(!item) return;
+      const text = buildFinalText(item);
+      try{
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = 'コピーしました';
+        setTimeout(()=> copyBtn.textContent = 'コピー', 1500);
+      }catch(err){
+        els.copyHelper.value = text;
+        els.copyHelper.style.left = '0';
+        els.copyHelper.select();
+        try{ document.execCommand('copy'); copyBtn.textContent = 'コピーしました'; }
+        catch(e2){ copyBtn.textContent = 'コピー失敗・選択して手動で'; }
+        els.copyHelper.style.left = '-9999px';
+        setTimeout(()=> copyBtn.textContent = 'コピー', 1800);
+      }
+      return;
+    }
+    if(saveBtn){
+      const item = currentItems[Number(saveBtn.dataset.index)];
+      if(!item) return;
+      const entry = {
+        id: Date.now() + Math.random().toString(36).slice(2,7),
+        ts: Date.now(),
+        date: new Date().toLocaleDateString('ja-JP'),
+        theme: els.results.dataset.theme || '',
+        eventLine: els.results.dataset.eventLine || '',
+        tone: selectedTone,
+        angle: item.angle || '',
+        subject: item.subject || '',
+        caption: item.caption || '',
+        fixedNoticeSnapshot: profile.fixedNotice || '',
+      };
+      history.push(entry);
+      try{ await storage.set('zuppa:history', JSON.stringify(history)); }catch(err){}
+      renderHistory();
+      saveBtn.textContent = '留めました';
+      saveBtn.disabled = true;
+    }
+  });
+  els.generateBtn.addEventListener('click', async ()=>{
+    const theme = els.themeInput.value;
+    els.generateBtn.disabled = true;
+    setStatus('考え中…ネタを練っています', false);
+    els.results.innerHTML = '';
+    try{
+      const { system, userMsg, eventLine } = buildPrompt(theme);
+      const headers = { 'Content-Type': 'application/json' };
+      if(calSettings.apiKey){
+        headers['x-api-key'] = calSettings.apiKey;
+        headers['anthropic-version'] = '2023-06-01';
+        headers['anthropic-dangerous-direct-browser-access'] = 'true';
+      }
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1000,
+          system: system,
+          messages: [{ role: 'user', content: userMsg }],
+        }),
+      });
+      if(!response.ok){ throw new Error('API error ' + response.status); }
+      const data = await response.json();
+      const items = parseResponse(data);
+      renderResults(items, theme, eventLine);
+      setStatus('3パターン作成しました。気に入ったものをコピーするか、コルクボードに留めてください。', false);
+    }catch(err){
+      console.error(err);
+      const hint = calSettings.apiKey ? '' : '（GitHubなど単独運用の場合は、設定画面でAnthropic APIキーを入力してください）';
+      setStatus('生成に失敗しました。もう一度お試しください。' + hint, true);
+    }finally{
+      els.generateBtn.disabled = false;
+    }
+  });
+  loadProfile();
+  loadHistory();
+  loadCalSettings();
+})();
+</script>
+</body>
+</html>
