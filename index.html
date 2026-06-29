@@ -948,7 +948,13 @@
       els.calAddStatus.classList.add('error');
       return;
     }
-    const title = item.subject || els.eventTitle.value.trim() || 'イベント';
+    // 件名：【内容 日付 時間】形式
+    const contentLabel = els.eventTitle.value.trim() || els.themeInput.value.trim().slice(0, 24) || item.subject.slice(0, 24);
+    const dateLabel = formatEventDate(els.eventDate.value);
+    const timeLabel = els.eventTime.value.trim();
+    const timePart = [dateLabel, timeLabel].filter(Boolean).join(' ');
+    const title = `【${contentLabel}${timePart ? '　' + timePart : ''}】`;
+    // 説明欄：AI生成の件名（リード文）→ 本文 → 定型文
     const bodyParts = [item.subject, item.caption, profile.fixedNotice && profile.fixedNotice.trim() ? profile.fixedNotice.trim() : ''].filter(Boolean);
     const description = bodyParts.join('\n\n');
     const range = parseTimeRange(els.eventTime.value);
