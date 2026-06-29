@@ -922,6 +922,7 @@
         <p class="memo-text">${escapeHtml(item.caption||'')}</p>
         <div class="memo-actions">
           <button class="btn btn-ghost copy-btn" data-index="${i}">コピー</button>
+          <button class="btn btn-ghost cal-card-btn" data-index="${i}">📅 カレンダーに登録</button>
           <button class="btn btn-primary save-btn" data-index="${i}">コルクボードに留める</button>
         </div>
       </div>
@@ -935,9 +936,67 @@
       els.fixedPreview.style.display = 'none';
     }
   }
+  async function addEventToCalendarFromCard(item, btn){
+    if(!accessToken){
+      els.calAddStatus.textContent = '先にGoogleと連携してください。';
+      els.calAddStatus.classList.add('error');
+      return;
+    }
+    const dateStr = els.eventDate.value;
+    if(!dateStr){
+      els.calAddStatus.textContent = '開催日を入力してください。';
+      els.calAddStatus.classList.add('error');
+      return;
+    }
+    const title = item.subject || els.eventTitle.value.trim() || 'イベント';
+    const bodyParts = [item.subject, item.caption, profile.fixedNotice && profile.fixedNotice.trim() ? profile.fixedNotice.trim() : ''].filter(Boolean);
+    const description = bodyParts.join('\n\n');
+    const range = parseTimeRange(els.eventTime.value);
+    let eventObj;
+    if(!range){
+      const d = new Date(dateStr + 'T00:00:00');
+      d.setDate(d.getDate() + 1);
+      const endDateStr = `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+      eventObj = { summary: title, description, start:{ date: dateStr }, end:{ date: endDateStr } };
+    } else {
+      const startDT = `${dateStr}T${pad2(range.start.h)}:${pad2(range.start.m)}:00`;
+      const endH = range.end ? range.end.h : range.start.h + 1;
+      const endM = range.end ? range.end.m : range.start.m;
+      const endDT = `${dateStr}T${pad2(endH)}:${pad2(endM)}:00`;
+      eventObj = { summary: title, description, start:{ dateTime: startDT, timeZone:'Asia/Tokyo' }, end:{ dateTime: endDT, timeZone:'Asia/Tokyo' } };
+    }
+    btn.disabled = true;
+    btn.textContent = '登録中…';
+    els.calAddStatus.classList.remove('error');
+    try{
+      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calSettings.calendarId)}/events`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + accessToken },
+        body: JSON.stringify(eventObj),
+      });
+      if(!res.ok){ const e = await res.text(); throw new Error(e); }
+      btn.textContent = '✅ 登録済み';
+      els.calAddStatus.textContent = '✅ カレンダーに登録しました。';
+    }catch(err){
+      console.error(err);
+      btn.textContent = '登録失敗';
+      btn.disabled = false;
+      els.calAddStatus.textContent = '登録に失敗しました。連携状態を確認してください。';
+      els.calAddStatus.classList.add('error');
+    }
+  }
+
   els.results.addEventListener('click', async (e)=>{
     const copyBtn = e.target.closest('.copy-btn');
+    const calCardBtn = e.target.closest('.cal-card-btn');
     const saveBtn = e.target.closest('.save-btn');
+    if(calCardBtn){
+      const item = currentItems[Number(calCardBtn.dataset.index)];
+      if(!item) return;
+      await addEventToCalendarFromCard(item, calCardBtn);
+      return;
+    }
     if(copyBtn){
       const item = currentItems[Number(copyBtn.dataset.index)];
       if(!item) return;
