@@ -428,6 +428,15 @@
     margin-top:8px;
     flex-wrap:wrap;
   }
+  .memo-cal-title{
+    font-family:'Shippori Mincho B1', serif;
+    font-size:13px;
+    font-weight:700;
+    color:var(--persimmon-deep);
+    margin:4px 0 10px;
+    line-height:1.5;
+    word-break:break-all;
+  }
   @media (prefers-reduced-motion: reduce){
     .btn, .memo-card{transition:none;}
   }
@@ -913,11 +922,22 @@
     }
     return parts.filter(Boolean).join('\n\n');
   }
+  function buildCalTitle(){
+    const contentLabel = els.eventTitle.value.trim() || els.themeInput.value.trim().slice(0, 24);
+    const dateLabel = formatEventDate(els.eventDate.value);
+    const timeLabel = els.eventTime.value.trim();
+    const timePart = [dateLabel, timeLabel].filter(Boolean).join(' ');
+    if(!contentLabel && !timePart) return '';
+    return `【${contentLabel}${timePart ? '　' + timePart : ''}】`;
+  }
+
   function renderResults(items, theme, eventLine){
     currentItems = items;
+    const calTitle = buildCalTitle();
     els.results.innerHTML = items.map((item, i) => `
       <div class="memo-card">
         <div class="memo-angle">${escapeHtml(item.angle||'候補'+(i+1))}</div>
+        ${calTitle ? `<div class="memo-cal-title">${escapeHtml(calTitle)}</div>` : ''}
         <p class="memo-subject">${escapeHtml(item.subject||'')}</p>
         <p class="memo-text">${escapeHtml(item.caption||'')}</p>
         <div class="memo-actions">
