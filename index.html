@@ -1596,7 +1596,7 @@
     }
 
     statusEl.textContent = '⏳ デプロイを作成中…';
-    const deploy = await netlifyFetch('POST',`/sites/${publishSettings.netlifySiteId}/deploys`,{ files:fileManifest, async:true });
+    const deploy = await netlifyFetch('POST',`/sites/${publishSettings.netlifySiteId}/deploys`,{ files:fileManifest });
     const deployId = deploy.id;
     const required = deploy.required || [];
 
