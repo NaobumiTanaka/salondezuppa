@@ -1494,16 +1494,44 @@
   // ═══════════════════════════════════════════════════════════════════════════
   // EVENT HTML GENERATOR (matches zuppa-lab.com structure)
   // ═══════════════════════════════════════════════════════════════════════════
+  // Fetch site CSS dynamically (stable deploy path)
+  async function fetchSiteCSS(){
+    try{
+      const r = await fetch('https://zuppa-lab.com/salon/event/');
+      const h = await r.text();
+      const m = h.match(/href="(\/_astro\/[^"]+\.css)"/);
+      if(!m) return null;
+      const cr = await fetch('https://zuppa-lab.com' + m[1]);
+      return cr.text();
+    }catch(e){ console.warn('CSS fetch failed:', e); return null; }
+  }
+
+  // Fetch current listing page and inject new event at top
+  async function fetchAndUpdateListing(slug, title, dateDisplay){
+    try{
+      const r = await fetch('https://zuppa-lab.com/salon/event/');
+      const h = await r.text();
+      const safeTitle = title.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const newItem = `<li class="py-4"> <a href="/salon/event/${slug}" class="hover:underline"> <p class="text-xs text-navy-900/50 mb-1">${dateDisplay}</p> <p class="font-bold">${safeTitle}</p> </a> </li>`;
+      // Insert after opening <ul ...>
+      const updated = h.replace(/(<ul[^>]*>)/, '$1' + newItem);
+      return new TextEncoder().encode(updated).buffer;
+    }catch(e){ console.warn('Listing update failed:', e); return null; }
+  }
+
   function buildEventHTML(item, entry, slug, imgFilename){
-    const title = item.subject || entry.subject || 'イベントレポート';
+    const rawTitle = item.subject || entry.subject || 'イベントレポート';
+    const title = rawTitle.replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const dateISO = entry.eventDateISO || '';
     const dateDisplay = dateISO
       ? new Date(dateISO).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'})
       : new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'});
-    const desc = (item.caption||'').slice(0,120).replace(/"/g,'&quot;');
-    const body = (item.caption||'').split('\n').map(p=>`<p>${p.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`).join('\n    ');
+    const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const desc = esc((item.caption||'').slice(0,120));
+    const body = (item.caption||'').split('\n').filter(p=>p.trim())
+      .map(p=>`      <p class="text-sm leading-loose text-navy-900/80">${esc(p)}</p>`).join('\n');
     const imgTag = imgFilename
-      ? `\n  <img src="images/${imgFilename}" alt="${title.replace(/"/g,'&quot;')}" style="width:100%;max-height:420px;object-fit:cover;border-radius:8px;margin:20px 0 24px;">`
+      ? `    <img src="images/${imgFilename}" alt="${esc(rawTitle)}" class="w-full object-cover rounded-md mb-8" style="max-height:420px">`
       : '';
     const year = new Date().getFullYear();
     return `<!DOCTYPE html>
@@ -1516,39 +1544,58 @@
 <meta property="og:title" content="${title} | Salon de Zuppa">
 <meta property="og:description" content="${desc}">
 <meta property="og:type" content="article">
-<link rel="stylesheet" href="/css/style.css">
+<meta property="og:site_name" content="Zuppa">
+<link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="/salon/event/styles.css">
 </head>
-<body>
-<header>
-  <nav>
-    <a href="/salon/">Salon de Zuppa</a>
-    <ul>
-      <li><a href="/salon/#about">about.</a></li>
-      <li><a href="/salon/#pictures">pictures.</a></li>
-      <li><a href="/salon/#event">event.</a></li>
-      <li><a href="/salon/#access">access.</a></li>
-      <li><a href="/salon/#calendar">calendar.</a></li>
-      <li><a href="/salon/#price">price.</a></li>
-      <li><a href="/salon/#amenities">amenities.</a></li>
-      <li><a href="/salon/#contact">contact.</a></li>
-    </ul>
-  </nav>
+<body class="antialiased font-sans">
+<header class="fixed top-0 inset-x-0 z-50 bg-navy-800/95 backdrop-blur text-white">
+  <div class="max-w-6xl mx-auto px-5 py-3 flex items-center justify-between">
+    <a href="/salon/" class="font-serif text-lg tracking-wide shrink-0">Salon de Zuppa</a>
+    <nav class="hidden md:flex items-center gap-6 text-sm tracking-wide">
+      <a href="/salon/#about" class="hover:text-gold-500 transition-colors">about.</a>
+      <a href="/salon/#pictures" class="hover:text-gold-500 transition-colors">pictures.</a>
+      <a href="/salon/#event" class="hover:text-gold-500 transition-colors">event.</a>
+      <a href="/salon/#access" class="hover:text-gold-500 transition-colors">access.</a>
+      <a href="/salon/#calendar" class="hover:text-gold-500 transition-colors">calendar.</a>
+      <a href="/salon/#price" class="hover:text-gold-500 transition-colors">price.</a>
+      <a href="/salon/#amenities" class="hover:text-gold-500 transition-colors">amenities.</a>
+      <a href="/salon/#contact" class="hover:text-gold-500 transition-colors">contact.</a>
+    </nav>
+  </div>
 </header>
 <main>
-  <p><a href="/salon/event/">← イベント記録一覧に戻る</a></p>
-  <h1>${title}</h1>
-  <p>${dateDisplay}</p>${imgTag}
-  ${body}
+  <article class="max-w-3xl mx-auto px-5 py-20">
+    <a href="/salon/event" class="text-xs text-navy-600 underline">← イベント記録一覧に戻る</a>
+    <h1 class="font-serif text-2xl font-bold mt-6 mb-3">${title}</h1>
+    <p class="text-xs text-navy-900/50 mb-8">${dateDisplay}</p>
+${imgTag}
+    <div class="space-y-5">
+${body}
+    </div>
+  </article>
 </main>
-<footer>
-  <p>Zuppa</p>
-  <p>東京・千駄ヶ谷と沖縄・石垣島で展開するレンタル／コワーキングスペース「Zuppaシリーズ」。株式会社ラストワンマイルが運営しています。</p>
-  <ul>
-    <li><a href="/">Zuppa（トップページ）</a></li>
-    <li><a href="/salon/">Salon de Zuppa（東京・千駄ヶ谷）</a></li>
-    <li><a href="/ishigaki/">Zuppa-Ishigaki（石垣島）</a></li>
-  </ul>
-  <p>© ${year} Zuppa / Last One Mile Inc.</p>
+<footer class="bg-navy-900 text-white/80 pt-14 pb-8">
+  <div class="max-w-6xl mx-auto px-5 grid gap-10 md:grid-cols-3">
+    <div>
+      <p class="font-serif text-lg text-white mb-4">Zuppa</p>
+      <p class="text-sm leading-relaxed text-white/60">東京・千駄ヶ谷と沖縄・石垣島で展開するレンタル／コワーキングスペース「Zuppaシリーズ」。株式会社ラストワンマイルが運営しています。</p>
+    </div>
+    <div>
+      <h3 class="text-xs tracking-widest text-white/40 mb-3">LOCATIONS</h3>
+      <ul class="space-y-2 text-sm">
+        <li><a href="/" class="hover:text-gold-500">Zuppa（トップページ）</a></li>
+        <li><a href="/salon/" class="hover:text-gold-500">Salon de Zuppa（東京・千駄ヶ谷）</a></li>
+        <li><a href="/ishigaki/" class="hover:text-gold-500">Zuppa-Ishigaki（石垣島）</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xs tracking-widest text-white/40 mb-3">CONTACT</h3>
+      <p class="text-sm">運営：株式会社ラストワンマイル</p>
+      <a href="mailto:tanaka@lastonemile.co.jp" class="text-sm hover:text-gold-500">tanaka@lastonemile.co.jp</a>
+    </div>
+  </div>
+  <p class="text-center text-xs text-white/40 mt-10">© ${year} Zuppa / Last One Mile Inc.</p>
 </footer>
 </body>
 </html>`;
@@ -1651,6 +1698,16 @@
     const htmlContent = buildEventHTML(item, entry, slug, imgFilename);
     const htmlBuf = new TextEncoder().encode(htmlContent).buffer;
     filesToDeploy.push({ path:`/salon/event/${slug}/index.html`, buffer:htmlBuf });
+
+    // Fetch & update event listing page
+    statusEl.textContent = '⏳ 一覧ページを更新中…';
+    const listingBuf = await fetchAndUpdateListing(slug, item.subject||entry.subject||'イベントレポート', dateDisplay);
+    if(listingBuf) filesToDeploy.push({ path:'/salon/event/index.html', buffer:listingBuf });
+
+    // Fetch & deploy CSS to stable path
+    statusEl.textContent = '⏳ スタイルシートを取得中…';
+    const cssText = await fetchSiteCSS();
+    if(cssText) filesToDeploy.push({ path:'/salon/event/styles.css', buffer:new TextEncoder().encode(cssText).buffer });
 
     // Save to Sheets
     statusEl.textContent = '⏳ Google Sheetsに保存中…';
