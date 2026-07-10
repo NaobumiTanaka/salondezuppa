@@ -858,6 +858,7 @@
         callback: (resp)=>{
           if(resp && resp.access_token){
             accessToken = resp.access_token;
+            window._zuppaToken = resp.access_token;
             setCalStatus(true, '連携済み（このブラウザのセッション中のみ有効）');
           }else{
             setCalStatus(false, '連携に失敗しました。もう一度お試しください。');
@@ -871,13 +872,15 @@
     }
   }
   els.calConnectBtn.addEventListener('click', ()=>{
-    if(!calSettings.clientId){
+    const clientId = calSettings.clientId || els.calClientId.value.trim();
+    if(!clientId){
       els.calEditView.style.display = 'block';
       setCalStatus(false, 'まずクライアントIDを設定してください。');
       return;
     }
+    if(!calSettings.clientId){ calSettings.clientId = clientId; }
     if(!tokenClient){ setupTokenClient(); }
-    if(tokenClient){ tokenClient.requestAccessToken(); }
+    if(tokenClient){ tokenClient.requestAccessToken({ prompt:'' }); }
   });
   function parseTimeRange(timeStr){
     const matches = (timeStr || '').match(/(\d{1,2}):(\d{2})/g) || [];
@@ -1611,8 +1614,9 @@
   async function publishReport(item, statusEl){
     if(!publishSettings.netlifyToken || !publishSettings.netlifySiteId)
       throw new Error('Netlify設定が未入力です。🌐 Webサイト連携パネルを設定してください。');
-    if(!accessToken)
+    if(!accessToken && !window._zuppaToken)
       throw new Error('Googleと連携してください（カレンダー連携ボタン）。');
+    if(!accessToken && window._zuppaToken) accessToken = window._zuppaToken;
 
     statusEl.textContent = '⏳ スプレッドシートを確認中…';
     const sheetId = await ensureSheetExists();
