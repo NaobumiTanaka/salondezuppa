@@ -1644,7 +1644,7 @@
 </header>
 <main>
   <article class="max-w-3xl mx-auto px-5 py-20">
-    <a href="/salon/event/report/" class="text-xs text-navy-600 underline">← イベント記録一覧に戻る</a>
+    <a href="/salon/event/" class="text-xs text-navy-600 underline">← イベント記録一覧に戻る</a>
     <h1 class="font-serif text-2xl font-bold mt-6 mb-3">${title}</h1>
     <p class="text-xs text-navy-900/50 mb-8">${dateDisplay}</p>
 ${imgTag}
@@ -1785,7 +1785,7 @@ ${body}
     statusEl.textContent = '⏳ 一覧ページを生成中…';
     publishSettings._cssUrl = cssUrl; // store for listing page
     const listingBuf = await buildListingFromSheets(sheetId);
-    if(listingBuf) filesToDeploy.push({ path:'/salon/event/report/index.html', buffer:listingBuf });
+    if(listingBuf) filesToDeploy.push({ path:'/salon/event/index.html', buffer:listingBuf });
 
     // Save to Sheets
     statusEl.textContent = '⏳ Google Sheetsに保存中…';
