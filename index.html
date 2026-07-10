@@ -1785,7 +1785,17 @@ ${body}
     statusEl.textContent = '⏳ 一覧ページを生成中…';
     publishSettings._cssUrl = cssUrl; // store for listing page
     const listingBuf = await buildListingFromSheets(sheetId);
-    if(listingBuf) filesToDeploy.push({ path:'/salon/event/index.html', buffer:listingBuf });
+    if(listingBuf){
+      filesToDeploy.push({ path:'/salon/event/index.html', buffer:listingBuf });
+      // _redirects: override Astro SSR function so static listing is served at /salon/event/
+      let existingRedirects = '';
+      try{
+        const rr = await fetch('https://zuppa-lab.com/_redirects');
+        if(rr.ok) existingRedirects = (await rr.text()).replace(/^\/salon\/event\/[^\n]*/gm,'').trim();
+      }catch(e){}
+      const redirectsContent = '/salon/event/ /salon/event/index.html 200\n' + (existingRedirects ? existingRedirects+'\n' : '');
+      filesToDeploy.push({ path:'/_redirects', buffer:new TextEncoder().encode(redirectsContent).buffer });
+    }
 
     // Save to Sheets
     statusEl.textContent = '⏳ Google Sheetsに保存中…';
