@@ -479,6 +479,21 @@
   }
   .btn-report{background:var(--moss);color:#fff;font-size:11px;padding:5px 10px;border-radius:6px;border:none;cursor:pointer;font-family:inherit;font-weight:700;}
   .btn-report:hover{opacity:0.88;}
+
+  /* --- Publish / Web連携 panel --- */
+  .photo-upload-area{
+    border:2px dashed var(--line);border-radius:10px;padding:14px;text-align:center;
+    cursor:pointer;transition:border-color 0.2s;position:relative;margin-bottom:8px;
+    background:#fff;font-size:12.5px;color:var(--ink-soft);
+  }
+  .photo-upload-area:hover{border-color:var(--persimmon);}
+  .photo-upload-area input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+  #photoPreview{width:100%;max-height:180px;object-fit:cover;border-radius:8px;margin-top:6px;display:none;}
+  .btn-publish{background:var(--persimmon);color:#fff;font-size:12px;padding:7px 14px;
+    border-radius:8px;border:none;cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap;}
+  .btn-publish:hover{background:var(--persimmon-deep);}
+  .btn-publish:disabled{opacity:0.5;cursor:not-allowed;}
+  .pub-status{font-size:12px;color:var(--ink-soft);margin:4px 0 2px;}
   @media (prefers-reduced-motion: reduce){
     .btn, .memo-card{transition:none;}
   }
@@ -552,6 +567,29 @@
         </div>
         <button class="btn btn-ghost btn-small" id="calConnectBtn" type="button">Googleと連携する</button>
       </div>
+      <div class="panel" id="pubPanel">
+        <div class="panel-title">
+          <span>🌐 Webサイト連携</span>
+          <button id="pubToggle">設定</button>
+        </div>
+        <div class="panel-hint">生成したイベントレポートをGoogle SheetsとNetlifyに自動公開します。</div>
+        <div class="pub-status" id="pubStatusText">未設定</div>
+        <div id="pubEditView" style="display:none;">
+          <div class="field">
+            <label for="pub-sheets-id">GoogleスプレッドシートID（空欄なら自動作成）</label>
+            <input id="pub-sheets-id" type="text" placeholder="1BxiM...（URLの /d/ と /edit の間）">
+          </div>
+          <div class="field">
+            <label for="pub-netlify-token">Netlify Personal Access Token</label>
+            <input id="pub-netlify-token" type="password" placeholder="nfp_...">
+          </div>
+          <div class="field">
+            <label for="pub-netlify-site">Netlify サイトID</label>
+            <input id="pub-netlify-site" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+          </div>
+          <button class="btn btn-primary btn-small" id="pubSettingsSave">設定を保存</button>
+        </div>
+      </div>
     </div>
     <!-- RIGHT: generator + results -->
     <div>
@@ -607,6 +645,14 @@
         <div class="field">
           <label for="reportNotes">当日の様子・印象的なシーン・エピソードなど（空欄でもOK）</label>
           <textarea id="reportNotes" rows="3" placeholder="例：初参加の方が半数以上で、終始にぎやかな雰囲気。型抜きの瞬間に歓声が上がった。子ども連れの方も多く、和やかに。"></textarea>
+        </div>
+        <div class="field">
+          <label>メイン写真（任意）</label>
+          <div class="photo-upload-area" id="photoUploadArea">
+            <input type="file" id="reportPhoto" accept="image/*">
+            <span id="photoUploadLabel">📷 写真を選択（タップ／クリック）</span>
+          </div>
+          <img id="photoPreview" alt="プレビュー">
         </div>
         <div class="gen-row">
           <div class="tone-group" id="reportToneGroup">
@@ -668,6 +714,16 @@
     reportGenerateBtn: document.getElementById('reportGenerateBtn'),
     reportStatusLine: document.getElementById('reportStatusLine'),
     reportResults: document.getElementById('reportResults'),
+    pubToggle: document.getElementById('pubToggle'),
+    pubEditView: document.getElementById('pubEditView'),
+    pubSheetsId: document.getElementById('pub-sheets-id'),
+    pubNetlifyToken: document.getElementById('pub-netlify-token'),
+    pubNetlifySite: document.getElementById('pub-netlify-site'),
+    pubSettingsSave: document.getElementById('pubSettingsSave'),
+    pubStatusText: document.getElementById('pubStatusText'),
+    reportPhoto: document.getElementById('reportPhoto'),
+    photoPreview: document.getElementById('photoPreview'),
+    photoUploadLabel: document.getElementById('photoUploadLabel'),
   };
   const storage = window.storage ? window.storage : {
     async get(key){
@@ -689,6 +745,8 @@
   let currentItems = [];
   let selectedTone = '温かみ重視';
   let calSettings = { clientId:'', calendarId:'627cgebu90hqut878j7rkr9cq4@group.calendar.google.com', apiKey:'' };
+  let publishSettings = { sheetsId:'', netlifyToken:'', netlifySiteId:'' };
+  let selectedPhotoFile = null;
   let tokenClient = null;
   let accessToken = null;
   function escapeHtml(s){
@@ -796,7 +854,7 @@
     try{
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: calSettings.clientId,
-        scope: 'https://www.googleapis.com/auth/calendar.events',
+        scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/spreadsheets',
         callback: (resp)=>{
           if(resp && resp.access_token){
             accessToken = resp.access_token;
@@ -1044,6 +1102,7 @@
         <div class="memo-actions">
           <button class="btn btn-ghost report-copy-btn" data-index="${i}">コピー</button>
           <button class="btn btn-ghost report-cal-btn" data-index="${i}">📅 カレンダーに書き込む</button>
+          <button class="btn btn-publish report-pub-btn" data-index="${i}">📊 保存 &amp; 🚀 公開</button>
         </div>
       </div>
     `).join('');
@@ -1335,8 +1394,295 @@
     }
   });
   loadProfile();
+  // ═══════════════════════════════════════════════════════════════════════════
+  // WEB連携: Settings
+  // ═══════════════════════════════════════════════════════════════════════════
+  async function loadPubSettings(){
+    try{
+      const r = await storage.get('zuppa:pubSettings');
+      if(r && r.value){ publishSettings = {...publishSettings,...JSON.parse(r.value)}; }
+    }catch(e){}
+    els.pubSheetsId.value = publishSettings.sheetsId || '';
+    els.pubNetlifyToken.value = publishSettings.netlifyToken || '';
+    els.pubNetlifySite.value = publishSettings.netlifySiteId || '';
+    updatePubStatus();
+  }
+  function updatePubStatus(){
+    const ok = publishSettings.netlifyToken && publishSettings.netlifySiteId;
+    els.pubStatusText.textContent = ok ? '設定済み ✓' : '未設定（Netlify Token・Site IDが必要）';
+  }
+  els.pubToggle.addEventListener('click',()=>{
+    const showing = els.pubEditView.style.display!=='none';
+    els.pubEditView.style.display = showing?'none':'block';
+  });
+  els.pubSettingsSave.addEventListener('click', async ()=>{
+    publishSettings = {
+      sheetsId: els.pubSheetsId.value.trim(),
+      netlifyToken: els.pubNetlifyToken.value.trim(),
+      netlifySiteId: els.pubNetlifySite.value.trim(),
+    };
+    try{ await storage.set('zuppa:pubSettings', JSON.stringify(publishSettings)); }catch(e){}
+    updatePubStatus();
+    els.pubEditView.style.display = 'none';
+  });
+
+  // ─── Photo picker ──────────────────────────────────────────────────────────
+  els.reportPhoto.addEventListener('change',()=>{
+    const file = els.reportPhoto.files[0];
+    if(!file){ selectedPhotoFile=null; els.photoPreview.style.display='none'; return; }
+    selectedPhotoFile = file;
+    els.photoUploadLabel.textContent = '📷 ' + file.name;
+    const url = URL.createObjectURL(file);
+    els.photoPreview.src = url;
+    els.photoPreview.style.display = 'block';
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UTILITY
+  // ═══════════════════════════════════════════════════════════════════════════
+  async function sha1hex(buffer){
+    const hash = await crypto.subtle.digest('SHA-1', buffer instanceof ArrayBuffer ? buffer : buffer.buffer || buffer);
+    return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+
+  function buildSlug(dateISO){
+    const d = dateISO ? dateISO.replace(/-/g,'') : new Date().toISOString().slice(0,10).replace(/-/g,'');
+    const rand = Date.now().toString(36).slice(-4);
+    return `salon-event-${d}-${rand}`;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GOOGLE SHEETS API
+  // ═══════════════════════════════════════════════════════════════════════════
+  async function sheetsRequest(method, path, body){
+    const opts = { method, headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'} };
+    if(body) opts.body = JSON.stringify(body);
+    const res = await fetch('https://sheets.googleapis.com/v4'+path, opts);
+    if(!res.ok){ const t=await res.text(); throw new Error('Sheets error '+res.status+': '+t.slice(0,200)); }
+    return res.json();
+  }
+
+  async function ensureSheetExists(){
+    if(publishSettings.sheetsId) return publishSettings.sheetsId;
+    const data = await sheetsRequest('POST','/spreadsheets',{
+      properties:{ title:'Salon de Zuppa イベントレポート' },
+      sheets:[
+        { properties:{ title:'Events', sheetId:0 } },
+        { properties:{ title:'Files',  sheetId:1 } }
+      ]
+    });
+    const id = data.spreadsheetId;
+    await appendRows(id,'Events',[['date','slug','title','description','body','event_name','saved_at']]);
+    await appendRows(id,'Files',[['path','sha1','event_slug','uploaded_at']]);
+    publishSettings.sheetsId = id;
+    try{ await storage.set('zuppa:pubSettings', JSON.stringify(publishSettings)); }catch(e){}
+    els.pubSheetsId.value = id;
+    return id;
+  }
+
+  async function appendRows(sheetId, sheetName, rows){
+    const range = encodeURIComponent(sheetName+'!A1');
+    return sheetsRequest('POST',
+      `/spreadsheets/${sheetId}/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      { values: rows }
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EVENT HTML GENERATOR (matches zuppa-lab.com structure)
+  // ═══════════════════════════════════════════════════════════════════════════
+  function buildEventHTML(item, entry, slug, imgFilename){
+    const title = item.subject || entry.subject || 'イベントレポート';
+    const dateISO = entry.eventDateISO || '';
+    const dateDisplay = dateISO
+      ? new Date(dateISO).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'})
+      : new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'});
+    const desc = (item.caption||'').slice(0,120).replace(/"/g,'&quot;');
+    const body = (item.caption||'').split('\n').map(p=>`<p>${p.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`).join('\n    ');
+    const imgTag = imgFilename
+      ? `\n  <img src="images/${imgFilename}" alt="${title.replace(/"/g,'&quot;')}" style="width:100%;max-height:420px;object-fit:cover;border-radius:8px;margin:20px 0 24px;">`
+      : '';
+    const year = new Date().getFullYear();
+    return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title} | Salon de Zuppa</title>
+<meta name="description" content="${desc}">
+<meta property="og:title" content="${title} | Salon de Zuppa">
+<meta property="og:description" content="${desc}">
+<meta property="og:type" content="article">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header>
+  <nav>
+    <a href="/salon/">Salon de Zuppa</a>
+    <ul>
+      <li><a href="/salon/#about">about.</a></li>
+      <li><a href="/salon/#pictures">pictures.</a></li>
+      <li><a href="/salon/#event">event.</a></li>
+      <li><a href="/salon/#access">access.</a></li>
+      <li><a href="/salon/#calendar">calendar.</a></li>
+      <li><a href="/salon/#price">price.</a></li>
+      <li><a href="/salon/#amenities">amenities.</a></li>
+      <li><a href="/salon/#contact">contact.</a></li>
+    </ul>
+  </nav>
+</header>
+<main>
+  <p><a href="/salon/event/">← イベント記録一覧に戻る</a></p>
+  <h1>${title}</h1>
+  <p>${dateDisplay}</p>${imgTag}
+  ${body}
+</main>
+<footer>
+  <p>Zuppa</p>
+  <p>東京・千駄ヶ谷と沖縄・石垣島で展開するレンタル／コワーキングスペース「Zuppaシリーズ」。株式会社ラストワンマイルが運営しています。</p>
+  <ul>
+    <li><a href="/">Zuppa（トップページ）</a></li>
+    <li><a href="/salon/">Salon de Zuppa（東京・千駄ヶ谷）</a></li>
+    <li><a href="/ishigaki/">Zuppa-Ishigaki（石垣島）</a></li>
+  </ul>
+  <p>© ${year} Zuppa / Last One Mile Inc.</p>
+</footer>
+</body>
+</html>`;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NETLIFY DEPLOY API
+  // ═══════════════════════════════════════════════════════════════════════════
+  async function netlifyFetch(method, path, body, isOctet){
+    const headers = { 'Authorization':'Bearer '+publishSettings.netlifyToken };
+    if(!isOctet) headers['Content-Type']='application/json';
+    const opts = { method, headers };
+    if(body) opts.body = isOctet ? body : JSON.stringify(body);
+    const res = await fetch('https://api.netlify.com/api/v1'+path, opts);
+    if(!res.ok){ const t=await res.text(); throw new Error('Netlify '+res.status+': '+t.slice(0,200)); }
+    const ct = res.headers.get('content-type')||'';
+    return ct.includes('json') ? res.json() : res.text();
+  }
+
+  async function getExistingFiles(){
+    try{
+      const deploys = await netlifyFetch('GET',`/sites/${publishSettings.netlifySiteId}/deploys?production=true&per_page=1`);
+      if(!deploys.length) return {};
+      const files = await netlifyFetch('GET',`/deploys/${deploys[0].id}/files`);
+      const manifest = {};
+      for(const f of files){ manifest[f.id] = f.sha; }
+      return manifest;
+    }catch(e){ console.warn('getExistingFiles error (non-fatal):', e); return {}; }
+  }
+
+  async function netlifyDeploy(newFiles, statusEl){
+    // newFiles: [{path, buffer (ArrayBuffer)}]
+    statusEl.textContent = '⏳ 既存ファイルを取得中…';
+    const existing = await getExistingFiles();
+
+    statusEl.textContent = '⏳ SHAを計算中…';
+    const sha1Map = {};
+    const fileManifest = { ...existing };
+    for(const f of newFiles){
+      const buf = f.buffer instanceof ArrayBuffer ? f.buffer : await f.buffer;
+      const hash = await sha1hex(buf);
+      fileManifest[f.path] = hash;
+      sha1Map[hash] = { path:f.path, buffer:buf };
+    }
+
+    statusEl.textContent = '⏳ デプロイを作成中…';
+    const deploy = await netlifyFetch('POST',`/sites/${publishSettings.netlifySiteId}/deploys`,{ files:fileManifest, async:true });
+    const deployId = deploy.id;
+    const required = deploy.required || [];
+
+    statusEl.textContent = `⏳ ファイルをアップロード中（${required.length}件）…`;
+    for(const sha of required){
+      const f = sha1Map[sha];
+      if(!f) continue;
+      await netlifyFetch('PUT',`/deploys/${deployId}/files${f.path}`, f.buffer, true);
+    }
+    return deployId;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PUBLISH ORCHESTRATOR
+  // ═══════════════════════════════════════════════════════════════════════════
+  async function publishReport(item, statusEl){
+    if(!publishSettings.netlifyToken || !publishSettings.netlifySiteId)
+      throw new Error('Netlify設定が未入力です。🌐 Webサイト連携パネルを設定してください。');
+    if(!accessToken)
+      throw new Error('Googleと連携してください（カレンダー連携ボタン）。');
+
+    statusEl.textContent = '⏳ スプレッドシートを確認中…';
+    const sheetId = await ensureSheetExists();
+
+    const entry = currentReportEntry || {};
+    const slug = buildSlug(entry.eventDateISO);
+    const dateISO = entry.eventDateISO || '';
+    const dateDisplay = dateISO
+      ? new Date(dateISO).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'})
+      : '日付未設定';
+
+    // Build image info
+    let imgFilename = null;
+    const filesToDeploy = [];
+    if(selectedPhotoFile){
+      const ext = (selectedPhotoFile.name.split('.').pop() || 'jpg').toLowerCase();
+      imgFilename = 'main.' + ext;
+      const buf = await selectedPhotoFile.arrayBuffer();
+      filesToDeploy.push({ path:`/salon/event/${slug}/images/${imgFilename}`, buffer:buf });
+    }
+
+    // Build HTML
+    const htmlContent = buildEventHTML(item, entry, slug, imgFilename);
+    const htmlBuf = new TextEncoder().encode(htmlContent).buffer;
+    filesToDeploy.push({ path:`/salon/event/${slug}/index.html`, buffer:htmlBuf });
+
+    // Save to Sheets
+    statusEl.textContent = '⏳ Google Sheetsに保存中…';
+    const now = new Date().toISOString().slice(0,10);
+    await appendRows(sheetId,'Events',[[
+      dateDisplay, slug, item.subject||'',
+      (item.caption||'').slice(0,120), item.caption||'',
+      entry.subject||entry.theme||'', now
+    ]]);
+    for(const f of filesToDeploy){
+      const hash = await sha1hex(f.buffer);
+      await appendRows(sheetId,'Files',[[f.path, hash, slug, now]]);
+    }
+
+    // Deploy to Netlify
+    await netlifyDeploy(filesToDeploy, statusEl);
+
+    statusEl.textContent = `✅ 公開しました！ https://zuppa-lab.com/salon/event/${slug}/ に反映されます。`;
+  }
+
+  // ─── 公開ボタンのクリックハンドラ ──────────────────────────────────────────
+  els.reportResults.addEventListener('click', async (e)=>{
+    const pubBtn = e.target.closest('.report-pub-btn');
+    if(!pubBtn) return;
+    const items = els.reportResults._items || [];
+    const item = items[Number(pubBtn.dataset.index)];
+    if(!item) return;
+    pubBtn.disabled = true;
+    const origText = pubBtn.textContent;
+    pubBtn.textContent = '処理中…';
+    try{
+      await publishReport(item, els.reportStatusLine);
+    }catch(err){
+      els.reportStatusLine.textContent = '❌ ' + err.message;
+      els.reportStatusLine.classList.add('error');
+    }finally{
+      pubBtn.disabled = false;
+      pubBtn.textContent = origText;
+    }
+  });
+
+
   loadHistory();
   loadCalSettings();
+  loadPubSettings();
 })();
 </script>
 </body>
