@@ -602,7 +602,21 @@
       <div id="pubHistorySection" style="margin-top:14px;display:none;">
         <div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px;">📖 公開履歴（Sheetsから取得）</div>
         <div id="pubHistoryList" style="font-size:12px;line-height:1.7;max-height:160px;overflow-y:auto;"></div>
-        <button class="btn btn-ghost btn-small" id="pubHistoryRefresh" style="margin-top:6px;">↻ 更新</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+          <button class="btn btn-ghost btn-small" id="pubHistoryRefresh">↻ 更新</button>
+          <button class="btn btn-ghost btn-small" id="recoverBtn">🔧 不足イベントをSheetsに追加</button>
+          <button class="btn btn-ghost btn-small" id="cleanupBtn" style="color:var(--persimmon-deep);border-color:var(--persimmon);">🗑️ テストイベントを全削除</button>
+        </div>
+        <div class="status-line" id="recoverStatus" style="margin-top:6px;"></div>
+        <!-- 削除確認パネル -->
+        <div id="cleanupConfirmPanel" style="display:none;margin-top:10px;background:#fff3f0;border:1px solid var(--persimmon);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:12px;font-weight:700;color:var(--persimmon-deep);margin-bottom:6px;">🗑️ 以下のイベントページをNetlifyから削除します</div>
+          <div id="cleanupList" style="font-size:11.5px;max-height:120px;overflow-y:auto;line-height:1.8;margin-bottom:8px;"></div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-small" id="cleanupCancel">キャンセル</button>
+            <button class="btn btn-small" id="cleanupConfirm" style="background:var(--persimmon-deep);color:#fff;">この内容で削除する</button>
+          </div>
+        </div>
       </div>
     </div>
     <!-- RIGHT: generator + results -->
@@ -1969,6 +1983,186 @@ ${body}
   }
 
   document.getElementById('pubHistoryRefresh')?.addEventListener('click', loadPubHistory);
+
+  // ─── 不足イベントリカバリー ────────────────────────────────────────────────
+  document.getElementById('recoverBtn')?.addEventListener('click', async ()=>{
+    const statusEl = document.getElementById('recoverStatus');
+    const btn = document.getElementById('recoverBtn');
+    if(!accessToken){ statusEl.textContent = '先にGoogleと連携してください。'; return; }
+    if(!publishSettings.netlifyToken || !publishSettings.netlifySiteId){
+      statusEl.textContent = 'Netlify設定が必要です。'; return;
+    }
+    if(!publishSettings.sheetsId){ statusEl.textContent = 'Sheets IDが必要です。'; return; }
+    btn.disabled = true;
+    statusEl.textContent = '⏳ Netlifyのファイル一覧を取得中…';
+    try{
+      // 1. Netlifyから最新デプロイのファイル一覧を取得
+      const deploys = await netlifyFetch('GET',`/sites/${publishSettings.netlifySiteId}/deploys?state=ready&per_page=1`);
+      if(!deploys.length) throw new Error('デプロイが見つかりません');
+      const files = await netlifyFetch('GET',`/deploys/${deploys[0].id}/files`);
+
+      // 2. salon-event-YYYYMMDD-xxxx スラッグを抽出
+      const netlifySlugSet = new Set();
+      for(const f of files){
+        const m = (f.id||'').match(/^\/salon\/event\/(salon-event-\d{8}-\w+)\/index\.html$/);
+        if(m) netlifySlugSet.add(m[1]);
+      }
+      statusEl.textContent = `⏳ Netlify上に${netlifySlugSet.size}件のイベントページを確認。Sheetsと照合中…`;
+
+      // 3. Sheets上の既存スラッグを取得
+      const range = encodeURIComponent('Events!B2:B');
+      const sr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${publishSettings.sheetsId}/values/${range}`,{
+        headers:{ Authorization:'Bearer '+accessToken }
+      });
+      const sd = await sr.json();
+      const existingSlugs = new Set((sd.values||[]).map(r=>r[0]).filter(Boolean));
+
+      // 4. 不足スラッグを特定
+      const missingSlugs = [...netlifySlugSet].filter(s=>!existingSlugs.has(s));
+      if(!missingSlugs.length){
+        statusEl.textContent = '✅ 不足しているイベントはありません。';
+        btn.disabled = false; return;
+      }
+      statusEl.textContent = `⏳ ${missingSlugs.length}件の不足イベントを検出。ページからタイトルを取得中…`;
+
+      // 5. 各イベントページからタイトル・日付を取得
+      const rows = [];
+      for(const slug of missingSlugs){
+        try{
+          const res = await fetch(`https://zuppa-lab.com/salon/event/${slug}/`);
+          const html = await res.text();
+          const titleM = html.match(/<h1[^>]*>([^<]+)<\/h1>/);
+          const dateM = html.match(/<p class="text-xs text-navy-900\/50 mb-8">([^<]+)<\/p>/);
+          const title = titleM ? titleM[1].trim() : slug;
+          const date = dateM ? dateM[1].trim() : '';
+          const now = new Date().toISOString().slice(0,10);
+          rows.push([date, slug, title, '', '', '', now]);
+        }catch(e){ rows.push(['', slug, slug, '', '', '', new Date().toISOString().slice(0,10)]); }
+      }
+
+      // 6. SheetsにAPPEND
+      statusEl.textContent = `⏳ ${rows.length}件をSheetsに追加中…`;
+      await appendRows(publishSettings.sheetsId, 'Events', rows);
+
+      // 7. 一覧ページを再生成してNetlifyにデプロイ
+      statusEl.textContent = '⏳ 一覧ページを再生成・デプロイ中…';
+      const cssUrl = await fetchSiteCSSUrl();
+      publishSettings._cssUrl = cssUrl;
+      const listingBuf = await buildListingFromSheets(publishSettings.sheetsId);
+      const redirectsContent = '/salon/event/ /salon/event/index.html 200\n';
+      const filesToDeploy = [
+        { path:'/_redirects', buffer:new TextEncoder().encode(redirectsContent).buffer },
+        { path:'/salon/event/index.html', buffer:listingBuf },
+      ];
+      await netlifyDeploy(filesToDeploy, statusEl);
+      statusEl.textContent = `✅ ${rows.length}件を復旧し、一覧を更新しました！`;
+      setTimeout(loadPubHistory, 2000);
+    }catch(e){
+      statusEl.textContent = '❌ エラー: '+e.message;
+    }finally{
+      btn.disabled = false;
+    }
+  });
+
+  // ─── テストイベント全削除 ────────────────────────────────────────────────────
+  let _cleanupSlugs = [];
+  document.getElementById('cleanupBtn')?.addEventListener('click', async ()=>{
+    const statusEl = document.getElementById('recoverStatus');
+    const confirmPanel = document.getElementById('cleanupConfirmPanel');
+    const listEl = document.getElementById('cleanupList');
+    if(!accessToken){ statusEl.textContent = '先にGoogleと連携してください。'; return; }
+    if(!publishSettings.netlifyToken || !publishSettings.netlifySiteId){
+      statusEl.textContent = 'Netlify設定が必要です。'; return;
+    }
+    statusEl.textContent = '⏳ Netlifyのファイル一覧を取得中…';
+    document.getElementById('cleanupBtn').disabled = true;
+    try{
+      const deploys = await netlifyFetch('GET',`/sites/${publishSettings.netlifySiteId}/deploys?state=ready&per_page=1`);
+      if(!deploys.length) throw new Error('デプロイが見つかりません');
+      const files = await netlifyFetch('GET',`/deploys/${deploys[0].id}/files`);
+      _cleanupSlugs = [];
+      for(const f of files){
+        const m = (f.id||'').match(/^\/salon\/event\/(salon-event-\d{8}-\w+)\//);
+        if(m && !_cleanupSlugs.includes(m[1])) _cleanupSlugs.push(m[1]);
+      }
+      if(!_cleanupSlugs.length){
+        statusEl.textContent = '削除対象のテストイベントはありません。';
+        document.getElementById('cleanupBtn').disabled = false; return;
+      }
+      listEl.innerHTML = _cleanupSlugs.map(s=>`<div>• ${s}</div>`).join('');
+      confirmPanel.style.display = 'block';
+      statusEl.textContent = `${_cleanupSlugs.length}件のテストイベントを検出しました。内容を確認して削除してください。`;
+    }catch(e){
+      statusEl.textContent = '❌ エラー: '+e.message;
+    }finally{
+      document.getElementById('cleanupBtn').disabled = false;
+    }
+  });
+
+  document.getElementById('cleanupCancel')?.addEventListener('click', ()=>{
+    document.getElementById('cleanupConfirmPanel').style.display = 'none';
+    document.getElementById('recoverStatus').textContent = '';
+    _cleanupSlugs = [];
+  });
+
+  document.getElementById('cleanupConfirm')?.addEventListener('click', async ()=>{
+    const statusEl = document.getElementById('recoverStatus');
+    const confirmBtn = document.getElementById('cleanupConfirm');
+    if(!_cleanupSlugs.length) return;
+    confirmBtn.disabled = true;
+    statusEl.textContent = '⏳ 削除用デプロイを準備中…';
+    try{
+      // 既存ファイルを取得してsalon-event-*を除いたマニフェストを作成
+      const deploys = await netlifyFetch('GET',`/sites/${publishSettings.netlifySiteId}/deploys?state=ready&per_page=1`);
+      const files = await netlifyFetch('GET',`/deploys/${deploys[0].id}/files`);
+      const slugSet = new Set(_cleanupSlugs);
+      const fileManifest = {};
+      for(const f of files){
+        const isTestEvent = _cleanupSlugs.some(s => (f.id||'').includes('/'+s+'/'));
+        if(!isTestEvent) fileManifest[f.id] = f.sha;
+      }
+      // 一覧ページ（OLD_EVENTSのみ）を再生成
+      statusEl.textContent = '⏳ 一覧ページを再生成中…';
+      const cssUrl = await fetchSiteCSSUrl();
+      publishSettings._cssUrl = cssUrl;
+      // Sheetsが空の場合でもbuildListingFromSheetsを呼ぶ（OLD_EVENTSのみ表示）
+      let listingBuf = null;
+      try{ listingBuf = await buildListingFromSheets(publishSettings.sheetsId||'dummy'); }catch(e){}
+      const redirectsContent = '/salon/event/ /salon/event/index.html 200\n';
+      const redirectsBuf = new TextEncoder().encode(redirectsContent).buffer;
+      if(listingBuf) fileManifest['/salon/event/index.html'] = await sha1hex(listingBuf);
+      fileManifest['/_redirects'] = await sha1hex(redirectsBuf);
+      // デプロイ作成
+      statusEl.textContent = '⏳ デプロイを作成中（テストイベントを除外）…';
+      const deploy = await netlifyFetch('POST',`/sites/${publishSettings.netlifySiteId}/deploys`,{ files:fileManifest });
+      const deployId = deploy.id;
+      const required = deploy.required || [];
+      // 新しいファイルのみアップロード
+      const uploadMap = {};
+      if(listingBuf){ const h=await sha1hex(listingBuf); uploadMap[h]={path:'/salon/event/index.html',buffer:listingBuf}; }
+      const rbuf=redirectsBuf; const rh=await sha1hex(rbuf); uploadMap[rh]={path:'/_redirects',buffer:rbuf};
+      for(const sha of required){
+        const f = uploadMap[sha];
+        if(!f){ console.warn('required SHA not in uploadMap:', sha); continue; }
+        statusEl.textContent = `⏳ アップロード中: ${f.path}`;
+        await netlifyFetch('PUT',`/deploys/${deployId}/files${f.path}`,f.buffer,true);
+      }
+      // デプロイ完了待機
+      for(let i=0;i<15;i++){
+        await new Promise(r=>setTimeout(r,2000));
+        const check = await netlifyFetch('GET',`/deploys/${deployId}`);
+        if(check.state==='ready'){ break; }
+        if(check.state==='error'){ throw new Error('デプロイエラー: '+check.error_message); }
+      }
+      document.getElementById('cleanupConfirmPanel').style.display = 'none';
+      _cleanupSlugs = [];
+      statusEl.textContent = `✅ ${slugSet.size}件のテストイベントを削除しました。一覧も更新されました。`;
+      setTimeout(loadPubHistory, 2000);
+    }catch(e){
+      statusEl.textContent = '❌ エラー: '+e.message;
+      confirmBtn.disabled = false;
+    }
+  });
 
   // ─── 公開ボタンのクリックハンドラ ──────────────────────────────────────────
   els.reportResults.addEventListener('click', async (e)=>{
