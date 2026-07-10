@@ -605,7 +605,6 @@
         <button class="btn btn-ghost btn-small" id="pubHistoryRefresh" style="margin-top:6px;">↻ 更新</button>
       </div>
     </div>
-    </div>
     <!-- RIGHT: generator + results -->
     <div>
       <div class="gen-input">
@@ -1521,89 +1520,93 @@
     }catch(e){ console.warn('CSS URL fetch failed:', e); return null; }
   }
 
-  // Build listing page — イベント詳細ページのHTMLを正とする設計
+  // Build listing page — Google Sheets（新イベント）+ 静的ルックアップ（旧Astroイベント）
   async function buildListingFromSheets(sheetId){
     // ── ヘルパー ──────────────────────────────────────────────
+    // 新スタイルスラッグ（salon-event-YYYYMMDD-xxxx）から日付を抽出
     function dateFromSlug(slug){
       const m = slug.match(/(\d{4})(\d{2})(\d{2})/);
       return m ? { sortKey: m[1]+m[2]+m[3], display: `${m[1]}/${m[2]}/${m[3]}` } : { sortKey:'00000000', display:'' };
     }
-    function extractTitle(html){
-      // <h1> タグのテキストを優先
-      const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-      if(h1){ const t = h1[1].replace(/<[^>]+>/g,'').trim(); if(t) return t; }
-      // フォールバック: <title> から " | ..." を除去
-      const t = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-      return t ? t[1].replace(/\s*\|.*$/, '').trim() : '';
-    }
-    function extractDate(html){
-      // 新スタイルのイベントページ: <p class="text-xs text-navy-900/50 mb-8">日付</p>
-      const p = html.match(/<p[^>]*class="[^"]*text-xs[^"]*navy[^"]*"[^>]*>([\s\S]*?)<\/p>/i);
-      if(p){ const d = p[1].replace(/<[^>]+>/g,'').trim(); if(d && d !== '日付未設定') return d; }
-      return '';
-    }
-
-    // ── 1. Netlifyデプロイ済みイベントページ一覧を取得 ────────
-    let deployId = null;
-    const eventSlugs = [];
-    const deploys = await netlifyFetch('GET',`/sites/${publishSettings.netlifySiteId}/deploys?state=ready&per_page=1`);
-    if(!deploys.length) throw new Error('Netlify: デプロイが見つかりません');
-    deployId = deploys[0].id;
-    const allFiles = await netlifyFetch('GET',`/deploys/${deployId}/files`);
-    for(const f of allFiles){
-      const m = (f.id||'').match(/^\/salon\/event\/([^/]+)\/index\.html$/);
-      if(m) eventSlugs.push(m[1]);
-    }
-
-    // ── 2. 各イベントページのHTMLを取得してタイトル・日付を抽出 ──
-    // Sheetsも参照してタイトル補完（詳細ページより信頼性高い場合あり）
-    const sheetsMap = new Map();
-    try{
-      const range = encodeURIComponent('Events!A2:G');
-      const sr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`,{
-        headers:{ Authorization:'Bearer '+accessToken }
-      });
-      if(sr.ok){
-        const sd = await sr.json();
-        for(const r of (sd.values||[])){
-          const [date, slug, title] = r;
-          if(slug) sheetsMap.set(slug, { date: date||'', title: title||'' });
-        }
+    // 旧スタイルスラッグ（{name}-MMDD-YYYY or {name}-YYYY）から日付を推定
+    function oldSlugDate(slug){
+      let m = slug.match(/-(\d{4})-(\d{4})$/);
+      if(m && parseInt(m[2]) >= 2010){
+        const mmdd=m[1], yr=m[2];
+        return { sortKey:yr+mmdd, display:`${yr}/${parseInt(mmdd.slice(0,2))}/${parseInt(mmdd.slice(2))}` };
       }
-    }catch(e){}
+      m = slug.match(/-(\d{4})$/);
+      if(m && parseInt(m[1]) >= 2010) return { sortKey:m[1]+'0000', display:m[1] };
+      return { sortKey:'00000000', display:'' };
+    }
 
-    const fetchEntry = async (slug) => {
-      const fromSlug = dateFromSlug(slug);
-      // Sheetsに完全なデータがあればそれを使う
-      const sheetData = sheetsMap.get(slug);
-      if(sheetData?.title && sheetData.title !== slug){
-        const validDate = (sheetData.date && sheetData.date !== '日付未設定') ? sheetData.date : fromSlug.display;
-        return { sortKey: fromSlug.sortKey, date: validDate, slug, title: sheetData.title };
-      }
-      // なければNetlify APIからHTMLを取得
-      try{
-        const r = await fetch(
-          `https://api.netlify.com/api/v1/deploys/${deployId}/files/salon/event/${slug}/index.html`,
-          { headers:{ Authorization:'Bearer '+publishSettings.netlifyToken, Accept:'application/octet-stream' } }
-        );
-        if(r.ok){
-          const html = await r.text();
-          const title = extractTitle(html) || slug;
-          const dateFromHtml = extractDate(html);
-          const validDate = (dateFromHtml && dateFromHtml !== '日付未設定') ? dateFromHtml : fromSlug.display;
-          return { sortKey: fromSlug.sortKey, date: validDate, slug, title };
-        }
-      }catch(e){}
-      return { sortKey: fromSlug.sortKey, date: fromSlug.display, slug, title: slug };
+    // ── 旧Astroイベントの静的タイトル辞書 ─────────────────────
+    // （zuppa-lab.com の同一オリジンフェッチで取得済み）
+    const OLD_EVENTS = {
+      'gekidan-keiko-0122-25-2018':'1/22-25 劇団の稽古場所利用',
+      'paralympian-uchiage-0316-2018':'3/16 米国のパラリンピアンとの打ち上げ',
+      'offsite-mtg-0404-06-2018':'4/4-6 企業様のオフサイトMTG利用',
+      'ibaraki-iju-keikaku-2018':'茨城移住計画イベントのレギュラー産品を決めよう！',
+      'portrait-satsuei-0116-2018':'1/16 ポートレート撮影利用',
+      'it-mtg-0410-2018':'4/10 IT企業様 MTG利用',
+      'tohoku-marathon-0425-2018':'4/25 東北風土マラソン 打ち上げ',
+      'ishigaki-oppo-night-0207-2018':'2/7 石垣 OPPO NIGHT in Salon de Zuppa ゲストマスター宝園博之（石垣島）',
+      'nikkei-mj-2019':'2019/9/25 日経MJに掲載されました',
+      'zasshi-satsuei-0226-2018':'2/26 雑誌の撮影利用',
+      'dance-class-0220-2018':'2/20 藤平さん コンテンポラリ〜ダンスクラス',
+      'yayoi-hakubutsukan-koryukai-0306-2018':'3/6 交流会 大阪府立弥生文化博物館 総括学芸員を招いて',
+      'vip-konshinkai-0407-2018':'4/7 企業様のVIP懇親会',
+      'dance-class-0308-2018':'3/8 藤平さん コンテンポラリ〜ダンスクラス',
+      'music-video-satsuei-0205-2018':'2/5 ミュージックビデオ撮影',
+      'pyeongchang-benkyokai-0305-2018':'3/5 平昌五輪の視察フィードバック',
+      'cosplay-satsuei-0114-2018':'1/14 コスプレ撮影利用',
+      'nfl-kanshokai-0215-2018':'2/15 NFL鑑賞会',
+      'dance-class-0417-2018':'4/17コンテンポラリ〜ダンスクラス',
+      'offsite-mtg-0314-2018':'3/14 企業様のオフサイトMTG',
+      'dance-art-music-koryukai-0126-2018':'1/26 ダンス、アート、音楽関係の方々の交流会',
+      'netmedia-satsuei-0402-2018':'4/2 ネットメディア系媒体 撮影利用',
+      'tekkoujima-fes-2017':'1/5 鉄工島Fesとアートの交流会',
+      'freeride-world-tour-0226-2018':'2/26 Freeride World Tour スタッフ打ち上げ',
+      'eiga-joeikai-2018':'上映会「幸福は日々の中に。」',
+      'it-offsite-mtg-0124-2018':'1/24 IT企業様 オフサイトMTG',
+      'dialogue-tohoku-0111-2018':'1/11 Dialogue Tohoku',
+      'dance-class-0213-2018':'2/13 藤平さん コンテンポラリ〜ダンスクラス',
+      'kickoff-mtg-0411-2018':'4/11 企業様キックオフ会議利用',
+      'zoku-daitaiya-2025':'2025/2-3「続・代替屋」の展覧会と飲食体験パフォーマンス開催',
+      'ichimanen-shirt-2018':'1万円のシャツ。セミオーダー会',
+      'miyagi-vs-kochi-0130-2018':'1/30 郷土の珍味と地酒 お取り寄せ対決「宮城vs.高知」',
+      'dance-class-0327-2018':'3/27 藤平さん コンテンポラリ〜ダンスクラス',
+      'fashion-photo-0206-2018':'2/6 ファッションフォト撮影',
+      'tohoku-fudo-marathon-2025':'2025/6/16 東北風土マラソン 打ち上げ'
     };
+    // イベントページではないスラッグ（除外リスト）
+    const NON_EVENT = new Set(['report','salon','ishigaki','index']);
 
-    // 並列取得（20件ずつ）
+    // ── 1. Google Sheetsからイベント一覧を取得（主データソース）────
+    const range = encodeURIComponent('Events!A2:G');
+    const sr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`,{
+      headers:{ Authorization:'Bearer '+accessToken }
+    });
+    if(!sr.ok){ const e = await sr.text(); throw new Error(`Sheets API ${sr.status}: ${e.slice(0,200)}`); }
+    const sd = await sr.json();
+
+    // ── 2. slugMap を構築（Sheets → OLD_EVENTS の優先順位）──────
     const slugMap = new Map();
-    const chunkSize = 20;
-    for(let i = 0; i < eventSlugs.length; i += chunkSize){
-      const chunk = eventSlugs.slice(i, i + chunkSize);
-      const results = await Promise.all(chunk.map(fetchEntry));
-      for(const entry of results) slugMap.set(entry.slug, entry);
+
+    // Sheetsの新イベント
+    for(const r of (sd.values||[])){
+      const [date, slug, title] = r;
+      if(!slug) continue;
+      const fromSlug = dateFromSlug(slug);
+      const validDate = (date && date !== '日付未設定') ? date : fromSlug.display;
+      slugMap.set(slug, { sortKey: fromSlug.sortKey, date: validDate, slug, title: title||slug });
+    }
+
+    // 旧Astroイベント（Sheetsにないもののみ追加）
+    for(const [slug, title] of Object.entries(OLD_EVENTS)){
+      if(slugMap.has(slug)) continue;
+      const dateInfo = oldSlugDate(slug);
+      slugMap.set(slug, { sortKey: dateInfo.sortKey, date: dateInfo.display, slug, title });
     }
 
     // ── 3. 日付降順ソート ──────────────────────────────────────
@@ -1861,9 +1864,18 @@ ${body}
     const htmlBuf = new TextEncoder().encode(htmlContent).buffer;
     filesToDeploy.push({ path:`/salon/event/${slug}/index.html`, buffer:htmlBuf });
 
-    // Build listing page from Sheets data
+    // ① 先にSheetsへ保存（新イベントを一覧生成前に登録）
+    statusEl.textContent = '⏳ Google Sheetsに保存中…';
+    const now = new Date().toISOString().slice(0,10);
+    await appendRows(sheetId,'Events',[[
+      dateDisplay, slug, item.subject||'',
+      (item.caption||'').slice(0,120), item.caption||'',
+      entry.subject||entry.theme||'', now
+    ]]);
+
+    // ② Sheets保存後に一覧ページを生成（新イベントが含まれる）
     statusEl.textContent = '⏳ 一覧ページを生成中…';
-    publishSettings._cssUrl = cssUrl; // store for listing page
+    publishSettings._cssUrl = cssUrl;
     let listingBuf = null;
     try{
       listingBuf = await buildListingFromSheets(sheetId);
@@ -1876,19 +1888,6 @@ ${body}
     filesToDeploy.push({ path:'/_redirects', buffer:new TextEncoder().encode(redirectsContent).buffer });
     if(listingBuf){
       filesToDeploy.push({ path:'/salon/event/index.html', buffer:listingBuf });
-    }
-
-    // Save to Sheets
-    statusEl.textContent = '⏳ Google Sheetsに保存中…';
-    const now = new Date().toISOString().slice(0,10);
-    await appendRows(sheetId,'Events',[[
-      dateDisplay, slug, item.subject||'',
-      (item.caption||'').slice(0,120), item.caption||'',
-      entry.subject||entry.theme||'', now
-    ]]);
-    for(const f of filesToDeploy){
-      const hash = await sha1hex(f.buffer);
-      await appendRows(sheetId,'Files',[[f.path, hash, slug, now]]);
     }
 
     // Deploy to Netlify
