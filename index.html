@@ -1443,6 +1443,7 @@
     try{ await storage.set('zuppa:pubSettings', JSON.stringify(publishSettings)); }catch(e){}
     updatePubStatus();
     els.pubEditView.style.display = 'none';
+    setTimeout(loadPubHistory, 300);
   });
 
   // ─── Photo picker ──────────────────────────────────────────────────────────
@@ -1790,8 +1791,12 @@ ${body}
   async function loadPubHistory(){
     const section = document.getElementById('pubHistorySection');
     const listEl = document.getElementById('pubHistoryList');
-    if(!publishSettings.sheetsId || !accessToken){ section.style.display='none'; return; }
+    if(!accessToken){ section.style.display='none'; return; }
     section.style.display = 'block';
+    if(!publishSettings.sheetsId){
+      listEl.innerHTML = '<span style="color:var(--ink-soft)">🌐 Webサイト連携パネルにGoogle SheetsのIDを入力してください。<br>（既存ID: <code style="user-select:all">12KYiMWf46W8HbZQuYMv5IG79uAIFWIFMFbkwpjbTMBc</code>）</span>';
+      return;
+    }
     listEl.textContent = '読み込み中…';
     try{
       const range = encodeURIComponent('Events!A2:C50');
