@@ -1523,20 +1523,23 @@
 
   // Build listing page from Sheets data (avoids CORS issue with zuppa-lab.com)
   async function buildListingFromSheets(sheetId){
-    try{
-      const range = encodeURIComponent('Events!A2:C200');
-      const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`,{
-        headers:{ Authorization:'Bearer '+accessToken }
-      });
-      const data = await res.json();
-      const rows = (data.values || []).reverse(); // newest first
-      const year = new Date().getFullYear();
-      const items = rows.map(r=>{
-        const [date, slug, title] = r;
-        if(!slug) return '';
-        const safeTitle = (title||slug).replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        return `<li class="py-4"> <a href="/salon/event/${slug}" class="hover:underline"> <p class="text-xs text-navy-900/50 mb-1">${date||''}</p> <p class="font-bold">${safeTitle}</p> </a> </li>`;
-      }).join('');
+    const range = encodeURIComponent('Events!A2:G');
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`,{
+      headers:{ Authorization:'Bearer '+accessToken }
+    });
+    if(!res.ok){
+      const errText = await res.text();
+      throw new Error(`Sheets API ${res.status}: ${errText.slice(0,200)}`);
+    }
+    const data = await res.json();
+    const rows = (data.values || []).reverse(); // newest first
+    const year = new Date().getFullYear();
+    const items = rows.map(r=>{
+      const [date, slug, title] = r;
+      if(!slug) return '';
+      const safeTitle = (title||slug).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return `<li class="py-4"> <a href="/salon/event/${slug}" class="hover:underline"> <p class="text-xs text-navy-900/50 mb-1">${date||''}</p> <p class="font-bold">${safeTitle}</p> </a> </li>`;
+    }).join('');
       const listingHTML = `<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -1594,7 +1597,6 @@
 </body>
 </html>`;
       return new TextEncoder().encode(listingHTML).buffer;
-    }catch(e){ console.warn('buildListingFromSheets failed:', e); return null; }
   }
 
   function buildEventHTML(item, entry, slug, imgFilename, cssUrl){
@@ -1784,17 +1786,18 @@ ${body}
     // Build listing page from Sheets data
     statusEl.textContent = '⏳ 一覧ページを生成中…';
     publishSettings._cssUrl = cssUrl; // store for listing page
-    const listingBuf = await buildListingFromSheets(sheetId);
+    let listingBuf = null;
+    try{
+      listingBuf = await buildListingFromSheets(sheetId);
+    }catch(e){
+      statusEl.textContent = `⚠️ 一覧生成エラー: ${e.message} — イベントページのみ公開します`;
+      await new Promise(r=>setTimeout(r,2000));
+    }
+    // Always deploy _redirects so /salon/event/ points to our index.html
+    const redirectsContent = '/salon/event/ /salon/event/index.html 200\n';
+    filesToDeploy.push({ path:'/_redirects', buffer:new TextEncoder().encode(redirectsContent).buffer });
     if(listingBuf){
       filesToDeploy.push({ path:'/salon/event/index.html', buffer:listingBuf });
-      // _redirects: override Astro SSR function so static listing is served at /salon/event/
-      let existingRedirects = '';
-      try{
-        const rr = await fetch('https://zuppa-lab.com/_redirects');
-        if(rr.ok) existingRedirects = (await rr.text()).replace(/^\/salon\/event\/[^\n]*/gm,'').trim();
-      }catch(e){}
-      const redirectsContent = '/salon/event/ /salon/event/index.html 200\n' + (existingRedirects ? existingRedirects+'\n' : '');
-      filesToDeploy.push({ path:'/_redirects', buffer:new TextEncoder().encode(redirectsContent).buffer });
     }
 
     // Save to Sheets
@@ -1813,7 +1816,7 @@ ${body}
     // Deploy to Netlify
     await netlifyDeploy(filesToDeploy, statusEl);
 
-    statusEl.textContent = `✅ 公開しました！ https://zuppa-lab.com/salon/event/${slug}/ に反映されます。`;
+    statusEl.innerHTML = `✅ 公開しました！ <a href="https://zuppa-lab.com/salon/event/${slug}/" target="_blank" rel="noopener" style="color:var(--persimmon-deep);text-decoration:underline;">https://zuppa-lab.com/salon/event/${slug}/</a> に反映されます。`;
     setTimeout(loadPubHistory, 3000);
   }
 
