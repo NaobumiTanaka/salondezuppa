@@ -589,7 +589,22 @@
           </div>
           <button class="btn btn-primary btn-small" id="pubSettingsSave">設定を保存</button>
         </div>
+        <div class="pub-settings-actions" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-small" id="pubExportBtn">📋 設定をコピー</button>
+          <button class="btn btn-ghost btn-small" id="pubImportBtn">📥 設定を貼り付け</button>
+        </div>
+        <div id="pubImportArea" style="display:none;margin-top:8px;">
+          <textarea id="pubImportJson" rows="3" style="width:100%;font-size:11px;font-family:monospace;border:1px solid var(--line);border-radius:6px;padding:6px;" placeholder="コピーした設定JSONをここに貼り付け…"></textarea>
+          <button class="btn btn-primary btn-small" id="pubImportConfirm" style="margin-top:4px;">適用</button>
+        </div>
       </div>
+      <!-- 過去の公開履歴 -->
+      <div id="pubHistorySection" style="margin-top:14px;display:none;">
+        <div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px;">📖 公開履歴（Sheetsから取得）</div>
+        <div id="pubHistoryList" style="font-size:12px;line-height:1.7;max-height:160px;overflow-y:auto;"></div>
+        <button class="btn btn-ghost btn-small" id="pubHistoryRefresh" style="margin-top:6px;">↻ 更新</button>
+      </div>
+    </div>
     </div>
     <!-- RIGHT: generator + results -->
     <div>
@@ -860,6 +875,7 @@
             accessToken = resp.access_token;
             window._zuppaToken = resp.access_token;
             setCalStatus(true, '連携済み（このブラウザのセッション中のみ有効）');
+            loadPubHistory();
           }else{
             setCalStatus(false, '連携に失敗しました。もう一度お試しください。');
           }
@@ -1726,7 +1742,77 @@ ${body}
     await netlifyDeploy(filesToDeploy, statusEl);
 
     statusEl.textContent = `✅ 公開しました！ https://zuppa-lab.com/salon/event/${slug}/ に反映されます。`;
+    setTimeout(loadPubHistory, 3000);
   }
+
+  // ─── 設定エクスポート ──────────────────────────────────────────────────────
+  document.getElementById('pubExportBtn')?.addEventListener('click', ()=>{
+    const data = JSON.stringify({
+      calSettings: { clientId: calSettings.clientId },
+      pubSettings: publishSettings
+    }, null, 2);
+    navigator.clipboard.writeText(data).then(()=>{
+      const btn = document.getElementById('pubExportBtn');
+      btn.textContent = '✅ コピーしました';
+      setTimeout(()=>{ btn.textContent = '📋 設定をコピー'; }, 2000);
+    });
+  });
+
+  document.getElementById('pubImportBtn')?.addEventListener('click', ()=>{
+    const area = document.getElementById('pubImportArea');
+    area.style.display = area.style.display === 'none' ? 'block' : 'none';
+  });
+
+  document.getElementById('pubImportConfirm')?.addEventListener('click', ()=>{
+    try{
+      const data = JSON.parse(document.getElementById('pubImportJson').value.trim());
+      if(data.calSettings?.clientId){
+        calSettings.clientId = data.calSettings.clientId;
+        els.calClientId.value = calSettings.clientId;
+        storage.set('zuppa:calSettings', JSON.stringify(calSettings));
+        setupTokenClient();
+      }
+      if(data.pubSettings){
+        Object.assign(publishSettings, data.pubSettings);
+        els.pubSheetsId.value = publishSettings.sheetsId || '';
+        els.pubNetlifyToken.value = publishSettings.netlifyToken || '';
+        els.pubNetlifySite.value = publishSettings.netlifySiteId || '';
+        storage.set('zuppa:pubSettings', JSON.stringify(publishSettings));
+        updatePubStatus();
+      }
+      document.getElementById('pubImportArea').style.display = 'none';
+      document.getElementById('pubImportJson').value = '';
+      alert('設定を適用しました。');
+    }catch(e){ alert('JSONの形式が正しくありません。'); }
+  });
+
+  // ─── 公開履歴 ─────────────────────────────────────────────────────────────
+  async function loadPubHistory(){
+    const section = document.getElementById('pubHistorySection');
+    const listEl = document.getElementById('pubHistoryList');
+    if(!publishSettings.sheetsId || !accessToken){ section.style.display='none'; return; }
+    section.style.display = 'block';
+    listEl.textContent = '読み込み中…';
+    try{
+      const range = encodeURIComponent('Events!A2:C50');
+      const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${publishSettings.sheetsId}/values/${range}`,{
+        headers:{ Authorization:'Bearer '+accessToken }
+      });
+      const data = await res.json();
+      const rows = data.values || [];
+      if(!rows.length){ listEl.textContent = '（まだ記録がありません）'; return; }
+      listEl.innerHTML = rows.reverse().map(r=>{
+        const date = r[0]||'', slug = r[1]||'', title = r[2]||'';
+        const url = slug ? `https://zuppa-lab.com/salon/event/${slug}/` : '';
+        return `<div style="border-bottom:1px solid var(--line);padding:4px 0;">
+          <span style="color:var(--ink-soft)">${date}</span>
+          ${url ? `<a href="${url}" target="_blank" style="color:var(--persimmon-deep);margin-left:6px;">${title||slug}</a>` : `<span style="margin-left:6px;">${title}</span>`}
+        </div>`;
+      }).join('');
+    }catch(e){ listEl.textContent = 'エラー: '+e.message; }
+  }
+
+  document.getElementById('pubHistoryRefresh')?.addEventListener('click', loadPubHistory);
 
   // ─── 公開ボタンのクリックハンドラ ──────────────────────────────────────────
   els.reportResults.addEventListener('click', async (e)=>{
