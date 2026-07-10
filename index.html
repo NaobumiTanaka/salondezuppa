@@ -605,13 +605,13 @@
           <input id="reportParticipants" type="text" placeholder="例：12名">
         </div>
         <div class="field">
-          <label for="reportNotes">当日の様子・メモ（空欄でもOK）</label>
-          <textarea id="reportNotes" rows="3" placeholder="例：初参加の方も多く、にぎやかな雰囲気でした。石けんの型抜きで盛り上がり…"></textarea>
+          <label for="reportNotes">当日の様子・印象的なシーン・エピソードなど（空欄でもOK）</label>
+          <textarea id="reportNotes" rows="3" placeholder="例：初参加の方が半数以上で、終始にぎやかな雰囲気。型抜きの瞬間に歓声が上がった。子ども連れの方も多く、和やかに。"></textarea>
         </div>
         <div class="gen-row">
           <div class="tone-group" id="reportToneGroup">
-            <button class="tone-chip active" data-tone="感謝・ご報告">感謝・ご報告</button>
-            <button class="tone-chip" data-tone="振り返り・エピソード">振り返り</button>
+            <button class="tone-chip active" data-tone="現場レポート風">現場レポート風</button>
+            <button class="tone-chip" data-tone="読み物・雰囲気描写重視">読み物・雰囲気重視</button>
             <button class="tone-chip" data-tone="次回予告も添えて">次回予告も添えて</button>
           </div>
           <button class="btn btn-primary gen-cta" id="reportGenerateBtn">作成する</button>
@@ -940,7 +940,7 @@
   }
   // ---- 報告機能 ----
   let currentReportEntry = null;
-  let selectedReportTone = '感謝・ご報告';
+  let selectedReportTone = '現場レポート風';
 
   els.boardList.addEventListener('click', async (e)=>{
     const delBtn = e.target.closest('.pin-del');
@@ -993,13 +993,13 @@
     const notes = els.reportNotes.value.trim();
     const profileText = `施設名: ${profile.name||'Salon de Zuppa'}\n場所: ${profile.place||'未設定'}\n言葉づかいの好み: ${profile.tone||'特になし'}`;
     const hasFixed = !!(profile.fixedNotice && profile.fixedNotice.trim());
-    const system = `あなたは日本のレンタルスペース「${profile.name||'Salon de Zuppa'}」のSNS担当者です。終了したイベントのFacebook報告投稿文を作成します。
+    const system = `あなたは日本のレンタルスペース「${profile.name||'Salon de Zuppa'}」のHP・SNS担当者です。開催済みイベントのレポート記事・報告投稿文を作成します。
 出力は次のJSON配列のみを返してください。前置き・後置き・コードブロック記号は一切含めないでください。
-[{"subject":"報告投稿の件名（15〜25文字。キャッチーで内容が伝わるもの）","angle":"切り口を表す短い日本語ラベル","caption":"報告投稿文本体"}]
+[{"subject":"記事の見出し（15〜25文字。読者の興味を引くキャッチーなもの）","angle":"切り口を表す短い日本語ラベル","caption":"レポート本文"}]
 配列の要素数は必ず3つにしてください。
-各captionは150〜220文字程度。感謝・振り返り・今後への期待などを含め、読んだ人が「行ってみたかった」「次は参加したい」と思えるような文にしてください。
-3つはそれぞれ異なる切り口にしてください（例：参加者への感謝メイン／当日の雰囲気描写メイン／次回予告もセット　など）。${hasFixed ? `\n定型文（料金・連絡先）はcaptionには含めないでください。自動で末尾に追加されます。` : ''}`;
-    const userMsg = `【施設情報】\n${profileText}\n\n【トーン指定】${selectedReportTone}\n\n【イベント情報】\nイベント名：${eventName}\n開催日時：${eventDate||'不明'}${participants ? `\n参加人数：${participants}` : ''}\n\n【当日の様子・メモ】\n${notes||'（特になし）'}\n\n上記をもとに、イベント報告のFacebook投稿文を3パターン作成してください。`;
+各captionは160〜240文字程度。参加していない読者に向けて、イベントの様子・雰囲気・見どころを伝えるレポート記事として書いてください。参加者へのお礼文や「ありがとうございました」調の文章は避け、現場の臨場感や魅力が伝わる描写を重視してください。
+3つはそれぞれ異なる切り口にしてください（例：当日の雰囲気・現場描写メイン／ハイライトシーンや印象的なエピソードメイン／次回開催予告も添えた締めくくり　など）。${hasFixed ? `\n定型文（料金・連絡先）はcaptionには含めないでください。自動で末尾に追加されます。` : ''}`;
+    const userMsg = `【施設情報】\n${profileText}\n\n【記事スタイル】${selectedReportTone}\n\n【イベント情報】\nイベント名：${eventName}\n開催日時：${eventDate||'不明'}${participants ? `\n参加人数：${participants}` : ''}\n\n【当日の様子・印象的なシーン・エピソードなど】\n${notes||'（特になし）'}\n\n上記をもとに、HPやSNSに掲載するイベントレポート記事を3パターン作成してください。`;
     return { system, userMsg };
   }
 
