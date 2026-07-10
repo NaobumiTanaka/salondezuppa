@@ -1535,31 +1535,38 @@
     const data = await res.json();
     const sheetsRows = data.values || [];
 
-    // slug → {date, slug, title} のマップ
+    // スラッグから YYYYMMDD ソートキーと表示日付を得るヘルパー
+    function dateFromSlug(slug){
+      const m = slug.match(/(\d{4})(\d{2})(\d{2})/);
+      return m ? { sortKey: m[1]+m[2]+m[3], display: `${m[1]}/${m[2]}/${m[3]}` } : { sortKey:'00000000', display:'' };
+    }
+
+    // slug → {sortKey, date, slug, title} のマップ
     const slugMap = new Map();
     for(const r of sheetsRows){
       const [date, slug, title] = r;
-      if(slug) slugMap.set(slug, { date: date||'', slug, title: title||slug });
+      if(!slug) continue;
+      const fromSlug = dateFromSlug(slug);
+      // Sheets日付が "日付未設定" や空のときはスラッグから補完
+      const validDate = (date && date !== '日付未設定') ? date : fromSlug.display;
+      slugMap.set(slug, { sortKey: fromSlug.sortKey, date: validDate, slug, title: title||slug });
     }
 
     // 2. Netlifyにデプロイ済みのイベントページも収集（Sheetsにない古いイベント含む）
     try{
       const existingFiles = await getExistingFiles();
       for(const path of Object.keys(existingFiles)){
-        // /salon/event/[slug]/index.html にマッチするパスを抽出
         const m = path.match(/^\/salon\/event\/([^/]+)\/index\.html$/);
         if(!m) continue;
         const slug = m[1];
         if(slugMap.has(slug)) continue; // Sheetsのデータを優先
-        // スラッグから日付を推定（例: salon-event-20260710-xxxx）
-        const dm = slug.match(/(\d{4})(\d{2})(\d{2})/);
-        const date = dm ? `${dm[1]}/${dm[2]}/${dm[3]}` : '';
-        slugMap.set(slug, { date, slug, title: slug });
+        const fromSlug = dateFromSlug(slug);
+        slugMap.set(slug, { sortKey: fromSlug.sortKey, date: fromSlug.display, slug, title: slug });
       }
     }catch(e){ console.warn('Netlify files取得スキップ:', e); }
 
     // 3. 日付降順ソート（新しい順）
-    const entries = [...slugMap.values()].sort((a, b) => b.date.localeCompare(a.date));
+    const entries = [...slugMap.values()].sort((a, b) => b.sortKey.localeCompare(a.sortKey));
 
     const year = new Date().getFullYear();
     const items = entries.map(({date, slug, title})=>{
@@ -1786,9 +1793,13 @@ ${body}
     const entry = currentReportEntry || {};
     const slug = buildSlug(entry.eventDateISO);
     const dateISO = entry.eventDateISO || '';
+    // スラッグに日付が含まれているので、eventDateISOがなくてもスラッグから補完
+    const slugDateMatch = slug.match(/(\d{4})(\d{2})(\d{2})/);
     const dateDisplay = dateISO
       ? new Date(dateISO).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'})
-      : '日付未設定';
+      : slugDateMatch
+        ? `${slugDateMatch[1]}/${slugDateMatch[2]}/${slugDateMatch[3]}`
+        : '';
 
     // Build image info
     let imgFilename = null;
