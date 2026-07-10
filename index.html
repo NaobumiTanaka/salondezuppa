@@ -1511,16 +1511,14 @@
   // ═══════════════════════════════════════════════════════════════════════════
   // EVENT HTML GENERATOR (matches zuppa-lab.com structure)
   // ═══════════════════════════════════════════════════════════════════════════
-  // Fetch site CSS dynamically (stable deploy path)
-  async function fetchSiteCSS(){
+  // Fetch site CSS URL from live page
+  async function fetchSiteCSSUrl(){
     try{
       const r = await fetch('https://zuppa-lab.com/salon/event/');
       const h = await r.text();
       const m = h.match(/href="(\/_astro\/[^"]+\.css)"/);
-      if(!m) return null;
-      const cr = await fetch('https://zuppa-lab.com' + m[1]);
-      return cr.text();
-    }catch(e){ console.warn('CSS fetch failed:', e); return null; }
+      return m ? 'https://zuppa-lab.com' + m[1] : null;
+    }catch(e){ console.warn('CSS URL fetch failed:', e); return null; }
   }
 
   // Fetch current listing page and inject new event at top
@@ -1536,7 +1534,7 @@
     }catch(e){ console.warn('Listing update failed:', e); return null; }
   }
 
-  function buildEventHTML(item, entry, slug, imgFilename){
+  function buildEventHTML(item, entry, slug, imgFilename, cssUrl){
     const rawTitle = item.subject || entry.subject || 'イベントレポート';
     const title = rawTitle.replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const dateISO = entry.eventDateISO || '';
@@ -1563,7 +1561,7 @@
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Zuppa">
 <link rel="icon" href="/favicon.svg">
-<link rel="stylesheet" href="/salon/event/styles.css">
+<link rel="stylesheet" href="${cssUrl||'https://zuppa-lab.com/_astro/_slug_.BuG1PzdG.css'}">
 </head>
 <body class="antialiased font-sans">
 <header class="fixed top-0 inset-x-0 z-50 bg-navy-800/95 backdrop-blur text-white">
@@ -1711,8 +1709,12 @@ ${body}
       filesToDeploy.push({ path:`/salon/event/${slug}/images/${imgFilename}`, buffer:buf });
     }
 
+    // Get live CSS URL first (needed for HTML generation)
+    statusEl.textContent = '⏳ スタイルシートURLを取得中…';
+    const cssUrl = await fetchSiteCSSUrl();
+
     // Build HTML
-    const htmlContent = buildEventHTML(item, entry, slug, imgFilename);
+    const htmlContent = buildEventHTML(item, entry, slug, imgFilename, cssUrl);
     const htmlBuf = new TextEncoder().encode(htmlContent).buffer;
     filesToDeploy.push({ path:`/salon/event/${slug}/index.html`, buffer:htmlBuf });
 
@@ -1720,11 +1722,6 @@ ${body}
     statusEl.textContent = '⏳ 一覧ページを更新中…';
     const listingBuf = await fetchAndUpdateListing(slug, item.subject||entry.subject||'イベントレポート', dateDisplay);
     if(listingBuf) filesToDeploy.push({ path:'/salon/event/index.html', buffer:listingBuf });
-
-    // Fetch & deploy CSS to stable path
-    statusEl.textContent = '⏳ スタイルシートを取得中…';
-    const cssText = await fetchSiteCSS();
-    if(cssText) filesToDeploy.push({ path:'/salon/event/styles.css', buffer:new TextEncoder().encode(cssText).buffer });
 
     // Save to Sheets
     statusEl.textContent = '⏳ Google Sheetsに保存中…';
