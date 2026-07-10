@@ -1521,8 +1521,9 @@
     }catch(e){ console.warn('CSS URL fetch failed:', e); return null; }
   }
 
-  // Build listing page from Sheets data (avoids CORS issue with zuppa-lab.com)
+  // Build listing page from Sheets data + existing Netlify deployed pages
   async function buildListingFromSheets(sheetId){
+    // 1. Google Sheetsからイベント情報取得
     const range = encodeURIComponent('Events!A2:G');
     const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`,{
       headers:{ Authorization:'Bearer '+accessToken }
@@ -1532,13 +1533,38 @@
       throw new Error(`Sheets API ${res.status}: ${errText.slice(0,200)}`);
     }
     const data = await res.json();
-    const rows = (data.values || []).reverse(); // newest first
-    const year = new Date().getFullYear();
-    const items = rows.map(r=>{
+    const sheetsRows = data.values || [];
+
+    // slug → {date, slug, title} のマップ
+    const slugMap = new Map();
+    for(const r of sheetsRows){
       const [date, slug, title] = r;
-      if(!slug) return '';
-      const safeTitle = (title||slug).replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      return `<li class="py-4"> <a href="/salon/event/${slug}" class="hover:underline"> <p class="text-xs text-navy-900/50 mb-1">${date||''}</p> <p class="font-bold">${safeTitle}</p> </a> </li>`;
+      if(slug) slugMap.set(slug, { date: date||'', slug, title: title||slug });
+    }
+
+    // 2. Netlifyにデプロイ済みのイベントページも収集（Sheetsにない古いイベント含む）
+    try{
+      const existingFiles = await getExistingFiles();
+      for(const path of Object.keys(existingFiles)){
+        // /salon/event/[slug]/index.html にマッチするパスを抽出
+        const m = path.match(/^\/salon\/event\/([^/]+)\/index\.html$/);
+        if(!m) continue;
+        const slug = m[1];
+        if(slugMap.has(slug)) continue; // Sheetsのデータを優先
+        // スラッグから日付を推定（例: salon-event-20260710-xxxx）
+        const dm = slug.match(/(\d{4})(\d{2})(\d{2})/);
+        const date = dm ? `${dm[1]}/${dm[2]}/${dm[3]}` : '';
+        slugMap.set(slug, { date, slug, title: slug });
+      }
+    }catch(e){ console.warn('Netlify files取得スキップ:', e); }
+
+    // 3. 日付降順ソート（新しい順）
+    const entries = [...slugMap.values()].sort((a, b) => b.date.localeCompare(a.date));
+
+    const year = new Date().getFullYear();
+    const items = entries.map(({date, slug, title})=>{
+      const safeTitle = title.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return `<li class="py-4"> <a href="/salon/event/${slug}" class="hover:underline"> <p class="text-xs text-navy-900/50 mb-1">${date}</p> <p class="font-bold">${safeTitle}</p> </a> </li>`;
     }).join('');
       const listingHTML = `<!DOCTYPE html>
 <html lang="ja">
