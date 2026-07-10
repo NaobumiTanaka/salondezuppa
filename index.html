@@ -437,6 +437,48 @@
     line-height:1.5;
     word-break:break-all;
   }
+  /* --- Report panel --- */
+  .report-panel{
+    margin-top:16px;
+    background:var(--paper-deep);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:18px 18px 20px;
+  }
+  .report-event-info{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:10px 12px;
+    font-size:12.5px;
+    line-height:1.7;
+    margin-bottom:12px;
+    color:var(--ink);
+  }
+  .report-event-info .ri-label{
+    font-size:10.5px;
+    color:var(--ink-soft);
+    display:block;
+    margin-bottom:2px;
+  }
+  .report-event-info .ri-title{
+    font-family:'Shippori Mincho B1', serif;
+    font-weight:700;
+    font-size:14px;
+    color:var(--persimmon-deep);
+  }
+  .report-panel-title{
+    font-family:'Shippori Mincho B1', serif;
+    font-weight:700;
+    font-size:15px;
+    margin:0 0 10px;
+    color:var(--ink);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .btn-report{background:var(--moss);color:#fff;font-size:11px;padding:5px 10px;border-radius:6px;border:none;cursor:pointer;font-family:inherit;font-weight:700;}
+  .btn-report:hover{opacity:0.88;}
   @media (prefers-reduced-motion: reduce){
     .btn, .memo-card{transition:none;}
   }
@@ -552,6 +594,31 @@
         <div class="board-title">📌 これまでの投稿メモ</div>
         <div id="boardList"></div>
       </div>
+      <div class="report-panel" id="reportPanel" style="display:none;">
+        <div class="report-panel-title">
+          <span>📝 イベント報告文を作成</span>
+          <button class="btn btn-ghost btn-small" id="reportClose">閉じる</button>
+        </div>
+        <div class="report-event-info" id="reportEventInfo"></div>
+        <div class="field">
+          <label for="reportParticipants">参加人数</label>
+          <input id="reportParticipants" type="text" placeholder="例：12名">
+        </div>
+        <div class="field">
+          <label for="reportNotes">当日の様子・メモ（空欄でもOK）</label>
+          <textarea id="reportNotes" rows="3" placeholder="例：初参加の方も多く、にぎやかな雰囲気でした。石けんの型抜きで盛り上がり…"></textarea>
+        </div>
+        <div class="gen-row">
+          <div class="tone-group" id="reportToneGroup">
+            <button class="tone-chip active" data-tone="感謝・ご報告">感謝・ご報告</button>
+            <button class="tone-chip" data-tone="振り返り・エピソード">振り返り</button>
+            <button class="tone-chip" data-tone="次回予告も添えて">次回予告も添えて</button>
+          </div>
+          <button class="btn btn-primary gen-cta" id="reportGenerateBtn">作成する</button>
+        </div>
+        <div class="status-line" id="reportStatusLine"></div>
+        <div class="results" id="reportResults"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -592,6 +659,15 @@
     calStatusText: document.getElementById('calStatusText'),
     calAddEventBtn: document.getElementById('calAddEventBtn'),
     calAddStatus: document.getElementById('calAddStatus'),
+    reportPanel: document.getElementById('reportPanel'),
+    reportClose: document.getElementById('reportClose'),
+    reportEventInfo: document.getElementById('reportEventInfo'),
+    reportParticipants: document.getElementById('reportParticipants'),
+    reportNotes: document.getElementById('reportNotes'),
+    reportToneGroup: document.getElementById('reportToneGroup'),
+    reportGenerateBtn: document.getElementById('reportGenerateBtn'),
+    reportStatusLine: document.getElementById('reportStatusLine'),
+    reportResults: document.getElementById('reportResults'),
   };
   const storage = window.storage ? window.storage : {
     async get(key){
@@ -856,16 +932,173 @@
           <button class="pin-del" data-id="${item.id}">削除</button>
         </div>
         <div class="pin-text">${escapeHtml(item.subject ? item.subject : (item.theme || '（ネタ出しモード）'))} ／ ${escapeHtml((item.caption||'').slice(0,40))}${(item.caption||'').length>40?'…':''}</div>
+        <div style="margin-top:6px;">
+          <button class="btn-report pin-report-btn" data-id="${item.id}">📝 報告文を作る</button>
+        </div>
       </div>
     `).join('');
   }
+  // ---- 報告機能 ----
+  let currentReportEntry = null;
+  let selectedReportTone = '感謝・ご報告';
+
   els.boardList.addEventListener('click', async (e)=>{
-    const btn = e.target.closest('.pin-del');
+    const delBtn = e.target.closest('.pin-del');
+    const reportBtn = e.target.closest('.pin-report-btn');
+    if(delBtn){
+      const id = delBtn.dataset.id;
+      history = history.filter(h => String(h.id) !== String(id));
+      try{ await storage.set('zuppa:history', JSON.stringify(history)); }catch(err){}
+      renderHistory();
+    }
+    if(reportBtn){
+      const id = reportBtn.dataset.id;
+      const entry = history.find(h => String(h.id) === String(id));
+      if(entry) openReportMode(entry);
+    }
+  });
+
+  function openReportMode(entry){
+    currentReportEntry = entry;
+    els.reportEventInfo.innerHTML = `
+      <span class="ri-label">報告対象のイベント</span>
+      <div class="ri-title">${escapeHtml(entry.subject || entry.theme || '（タイトルなし）')}</div>
+      ${entry.eventLine ? `<div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;">📅 ${escapeHtml(entry.eventLine)}</div>` : ''}
+    `;
+    els.reportParticipants.value = '';
+    els.reportNotes.value = '';
+    els.reportResults.innerHTML = '';
+    els.reportStatusLine.textContent = '';
+    els.reportPanel.style.display = 'block';
+    els.reportPanel.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+
+  els.reportClose.addEventListener('click', ()=>{
+    els.reportPanel.style.display = 'none';
+    currentReportEntry = null;
+  });
+
+  els.reportToneGroup.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.tone-chip');
     if(!btn) return;
-    const id = btn.dataset.id;
-    history = history.filter(h => String(h.id) !== String(id));
-    try{ await storage.set('zuppa:history', JSON.stringify(history)); }catch(err){}
-    renderHistory();
+    selectedReportTone = btn.dataset.tone;
+    [...els.reportToneGroup.children].forEach(c => c.classList.toggle('active', c===btn));
+  });
+
+  function buildReportPrompt(){
+    const entry = currentReportEntry;
+    const eventName = entry.subject || entry.theme || 'イベント';
+    const eventDate = entry.eventLine || '';
+    const participants = els.reportParticipants.value.trim();
+    const notes = els.reportNotes.value.trim();
+    const profileText = `施設名: ${profile.name||'Salon de Zuppa'}\n場所: ${profile.place||'未設定'}\n言葉づかいの好み: ${profile.tone||'特になし'}`;
+    const hasFixed = !!(profile.fixedNotice && profile.fixedNotice.trim());
+    const system = `あなたは日本のレンタルスペース「${profile.name||'Salon de Zuppa'}」のSNS担当者です。終了したイベントのFacebook報告投稿文を作成します。
+出力は次のJSON配列のみを返してください。前置き・後置き・コードブロック記号は一切含めないでください。
+[{"subject":"報告投稿の件名（15〜25文字。キャッチーで内容が伝わるもの）","angle":"切り口を表す短い日本語ラベル","caption":"報告投稿文本体"}]
+配列の要素数は必ず3つにしてください。
+各captionは150〜220文字程度。感謝・振り返り・今後への期待などを含め、読んだ人が「行ってみたかった」「次は参加したい」と思えるような文にしてください。
+3つはそれぞれ異なる切り口にしてください（例：参加者への感謝メイン／当日の雰囲気描写メイン／次回予告もセット　など）。${hasFixed ? `\n定型文（料金・連絡先）はcaptionには含めないでください。自動で末尾に追加されます。` : ''}`;
+    const userMsg = `【施設情報】\n${profileText}\n\n【トーン指定】${selectedReportTone}\n\n【イベント情報】\nイベント名：${eventName}\n開催日時：${eventDate||'不明'}${participants ? `\n参加人数：${participants}` : ''}\n\n【当日の様子・メモ】\n${notes||'（特になし）'}\n\n上記をもとに、イベント報告のFacebook投稿文を3パターン作成してください。`;
+    return { system, userMsg };
+  }
+
+  els.reportGenerateBtn.addEventListener('click', async ()=>{
+    if(!currentReportEntry){ return; }
+    els.reportGenerateBtn.disabled = true;
+    els.reportStatusLine.textContent = '考え中…';
+    els.reportStatusLine.classList.remove('error');
+    els.reportResults.innerHTML = '';
+    try{
+      const { system, userMsg } = buildReportPrompt();
+      const headers = { 'Content-Type': 'application/json' };
+      if(calSettings.apiKey){
+        headers['x-api-key'] = calSettings.apiKey;
+        headers['anthropic-version'] = '2023-06-01';
+        headers['anthropic-dangerous-direct-browser-access'] = 'true';
+      }
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST', headers,
+        body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000, system, messages:[{role:'user',content:userMsg}] }),
+      });
+      if(!res.ok) throw new Error('API error '+res.status);
+      const data = await res.json();
+      const items = parseResponse(data);
+      renderReportResults(items);
+      els.reportStatusLine.textContent = '3パターン作成しました。';
+    }catch(err){
+      console.error(err);
+      els.reportStatusLine.textContent = '生成に失敗しました。APIキーと連携状態を確認してください。';
+      els.reportStatusLine.classList.add('error');
+    }finally{
+      els.reportGenerateBtn.disabled = false;
+    }
+  });
+
+  function renderReportResults(items){
+    els.reportResults.innerHTML = items.map((item,i)=>`
+      <div class="memo-card">
+        <div class="memo-angle">${escapeHtml(item.angle||'報告候補'+(i+1))}</div>
+        <p class="memo-subject">${escapeHtml(item.subject||'')}</p>
+        <p class="memo-text">${escapeHtml(item.caption||'')}</p>
+        <div class="memo-actions">
+          <button class="btn btn-ghost report-copy-btn" data-index="${i}">コピー</button>
+          <button class="btn btn-ghost report-cal-btn" data-index="${i}">📅 カレンダーに書き込む</button>
+        </div>
+      </div>
+    `).join('');
+    els.reportResults._items = items;
+  }
+
+  els.reportResults.addEventListener('click', async (e)=>{
+    const copyBtn = e.target.closest('.report-copy-btn');
+    const calBtn = e.target.closest('.report-cal-btn');
+    const items = els.reportResults._items || [];
+    if(copyBtn){
+      const item = items[Number(copyBtn.dataset.index)];
+      if(!item) return;
+      const text = [item.subject, item.caption, profile.fixedNotice?.trim()].filter(Boolean).join('\n\n');
+      try{
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = 'コピーしました';
+        setTimeout(()=>copyBtn.textContent='コピー', 1500);
+      }catch(e){ copyBtn.textContent='コピー失敗'; }
+    }
+    if(calBtn){
+      const item = items[Number(calBtn.dataset.index)];
+      if(!item) return;
+      if(!accessToken){ alert('先にGoogleと連携してください。'); return; }
+      const entry = currentReportEntry;
+      if(!entry?.eventDateISO){ alert('このメモにはイベント日付情報がありません。'); return; }
+      calBtn.disabled = true;
+      calBtn.textContent = '検索中…';
+      try{
+        const tz = '+09:00';
+        const timeMin = encodeURIComponent(entry.eventDateISO+'T00:00:00'+tz);
+        const timeMax = encodeURIComponent(entry.eventDateISO+'T23:59:59'+tz);
+        const listUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calSettings.calendarId)}/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true`;
+        const listRes = await fetch(listUrl, { headers:{'Authorization':'Bearer '+accessToken} });
+        if(!listRes.ok) throw new Error('list error '+listRes.status);
+        const listData = await listRes.json();
+        const keyword = (entry.subject||entry.theme||'').slice(0,10);
+        const matched = (listData.items||[]).find(ev=>ev.summary&&(ev.summary.includes(keyword)||keyword===''));
+        if(!matched){ calBtn.textContent = 'イベントが見つかりません'; calBtn.disabled=false; return; }
+        const reportText = [item.subject, item.caption, profile.fixedNotice?.trim()].filter(Boolean).join('\n\n');
+        const newDesc = (matched.description||'') + '\n\n--- 報告 ('+new Date().toLocaleDateString('ja-JP')+') ---\n' + reportText;
+        const patchUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calSettings.calendarId)}/events/${matched.id}`;
+        const patchRes = await fetch(patchUrl, {
+          method:'PATCH',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+accessToken},
+          body: JSON.stringify({ description: newDesc }),
+        });
+        if(!patchRes.ok) throw new Error('patch error '+patchRes.status);
+        calBtn.textContent = '✅ 書き込みました';
+      }catch(err){
+        console.error(err);
+        calBtn.textContent = '書き込み失敗';
+        calBtn.disabled = false;
+      }
+    }
   });
   function setStatus(msg, isError){
     els.statusLine.textContent = msg || '';
@@ -1056,6 +1289,7 @@
         subject: item.subject || '',
         caption: item.caption || '',
         fixedNoticeSnapshot: profile.fixedNotice || '',
+        eventDateISO: els.eventDate.value || '',
       };
       history.push(entry);
       try{ await storage.set('zuppa:history', JSON.stringify(history)); }catch(err){}
