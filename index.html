@@ -604,6 +604,7 @@
         <div id="pubHistoryList" style="font-size:12px;line-height:1.7;max-height:160px;overflow-y:auto;"></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
           <button class="btn btn-ghost btn-small" id="pubHistoryRefresh">↻ 更新</button>
+          <button class="btn btn-ghost btn-small" id="listingPreviewBtn">📋 一覧プレビュー</button>
           <button class="btn btn-ghost btn-small" id="recoverBtn">🔧 不足イベントをSheetsに追加</button>
           <button class="btn btn-ghost btn-small" id="cleanupBtn" style="color:var(--persimmon-deep);border-color:var(--persimmon);">🗑️ テストイベントを全削除</button>
         </div>
@@ -1984,6 +1985,34 @@ ${body}
   }
 
   document.getElementById('pubHistoryRefresh')?.addEventListener('click', loadPubHistory);
+
+  // ─── 一覧プレビュー（Netlify/Sheets通信なし）──────────────────────────────
+  document.getElementById('listingPreviewBtn')?.addEventListener('click', async ()=>{
+    const btn = document.getElementById('listingPreviewBtn');
+    const statusEl = document.getElementById('recoverStatus');
+    if(!accessToken){ statusEl.textContent = '先にGoogleと連携してください。'; return; }
+    if(!publishSettings.sheetsId){ statusEl.textContent = 'SheetsIDが設定されていません。'; return; }
+    const origText = btn.textContent;
+    btn.textContent = '生成中…';
+    btn.disabled = true;
+    statusEl.textContent = '⏳ 一覧を生成中…';
+    try{
+      const cssUrl = publishSettings._cssUrl || await fetchSiteCSSUrl().catch(()=>null);
+      if(cssUrl) publishSettings._cssUrl = cssUrl;
+      const buf = await buildListingFromSheets(publishSettings.sheetsId);
+      const html = new TextDecoder().decode(buf);
+      const blob = new Blob([html], {type:'text/html'});
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(()=>URL.revokeObjectURL(url), 60000);
+      statusEl.textContent = '✅ 新しいタブでプレビューを開きました。';
+    }catch(e){
+      statusEl.textContent = '❌ エラー: ' + e.message;
+    }finally{
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
+  });
 
   // ─── 不足イベントリカバリー ────────────────────────────────────────────────
   document.getElementById('recoverBtn')?.addEventListener('click', async ()=>{
