@@ -5,105 +5,101 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Salon de Zuppa 投稿文ジェネレーター</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap');
   :root{
-    --paper:#F7F1E6;
-    --paper-deep:#EFE6D4;
-    --ink:#2B2620;
-    --ink-soft:#6B6356;
-    --persimmon:#B5562F;
-    --persimmon-deep:#8F4423;
-    --moss:#6E7A52;
-    --board:#3B332B;
-    --board-line:#4A4038;
-    --washi:#E3C56B;
-    --line:#D8CDB4;
+    --bg:#FAFBFC;
+    --surface:#FFFFFF;
+    --border:#E5E7EB;
+    --border-input:#D1D5DB;
+    --ink:#111827;
+    --ink-soft:#6B7280;
+    --ink-muted:#9CA3AF;
+    --navy:#1E3A5F;
+    --navy-hover:#284B74;
+    --navy-active:#16304E;
+    --navy-ring:rgba(30,58,95,0.12);
+    --line:#E5E7EB;
   }
   *{box-sizing:border-box;}
-  body{margin:0;padding:16px;background:#f0ebe0;}
+  body{margin:0;padding:20px;background:var(--bg);font-family:'Zen Kaku Gothic New','Inter',sans-serif;}
   .zuppa-app{
-    font-family:'Zen Kaku Gothic New', sans-serif;
     color:var(--ink);
-    background:var(--paper);
-    background-image:
-      radial-gradient(circle at 0 0, rgba(0,0,0,0.015) 1px, transparent 1px),
-      radial-gradient(circle at 12px 12px, rgba(0,0,0,0.015) 1px, transparent 1px);
-    background-size:24px 24px;
-    border-radius:18px;
+    background:var(--surface);
+    border-radius:16px;
     padding:0;
-    max-width:920px;
+    max-width:960px;
     margin:0 auto;
     overflow:hidden;
-    border:1px solid var(--line);
+    border:1px solid var(--border);
+    box-shadow:0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
   }
   .zuppa-header{
-    padding:32px 32px 22px;
-    border-bottom:1px dashed var(--line);
-    position:relative;
+    padding:28px 32px 20px;
+    border-bottom:1px solid var(--border);
+    background:var(--surface);
   }
   .zuppa-eyebrow{
-    font-size:12px;
-    letter-spacing:0.18em;
-    color:var(--persimmon-deep);
-    font-weight:700;
-    display:flex;
-    align-items:center;
-    gap:8px;
-  }
-  .zuppa-eyebrow::before{
-    content:"";
-    width:14px;height:1px;background:var(--persimmon-deep);
+    font-size:11px;
+    letter-spacing:0.12em;
+    color:var(--navy);
+    font-weight:600;
+    text-transform:uppercase;
+    margin-bottom:8px;
   }
   .zuppa-title{
-    font-family:'Shippori Mincho B1', serif;
-    font-weight:800;
-    font-size:30px;
-    margin:10px 0 6px;
-    letter-spacing:0.02em;
+    font-family:'Inter','Zen Kaku Gothic New',sans-serif;
+    font-weight:700;
+    font-size:22px;
+    margin:0 0 6px;
+    color:var(--ink);
+    letter-spacing:-0.01em;
   }
   .zuppa-sub{
     font-size:13px;
     color:var(--ink-soft);
-    line-height:1.7;
+    line-height:1.6;
   }
   .zuppa-body{
-    padding:26px 32px 36px;
+    padding:24px 32px 36px;
     display:grid;
     grid-template-columns:1fr;
-    gap:28px;
+    gap:24px;
+    background:var(--bg);
   }
   @media (min-width:760px){
     .zuppa-body{grid-template-columns:300px 1fr;}
   }
-  /* --- Profile / setup panel --- */
+  /* --- Panel --- */
   .panel{
-    background:var(--paper-deep);
-    border:1px solid var(--line);
-    border-radius:12px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
     padding:18px 18px 20px;
+    box-shadow:0 1px 2px rgba(0,0,0,0.04);
   }
   .panel-title{
-    font-family:'Shippori Mincho B1', serif;
-    font-weight:700;
-    font-size:15px;
+    font-weight:600;
+    font-size:13.5px;
     margin:0 0 4px;
+    color:var(--ink);
     display:flex;
     align-items:center;
     justify-content:space-between;
   }
   .panel-title button{
     font-size:11px;
-    color:var(--persimmon-deep);
+    color:var(--navy);
     background:none;
     border:none;
     cursor:pointer;
     font-family:inherit;
-    text-decoration:underline;
+    font-weight:500;
     padding:0;
   }
+  .panel-title button:hover{text-decoration:underline;}
   .panel-hint{
     font-size:11.5px;
-    color:var(--ink-soft);
+    color:var(--ink-muted);
     margin:0 0 12px;
     line-height:1.6;
   }
@@ -120,15 +116,17 @@
     font-family:inherit;
     font-size:13px;
     padding:8px 10px;
-    border:1px solid var(--line);
-    border-radius:7px;
-    background:#fff;
+    border:1px solid var(--border-input);
+    border-radius:12px;
+    background:var(--surface);
     color:var(--ink);
     resize:vertical;
+    transition:border-color 0.15s, box-shadow 0.15s;
   }
   .field input:focus, .field textarea:focus, .gen-input textarea:focus{
-    outline:2px solid var(--persimmon);
-    outline-offset:1px;
+    outline:none;
+    border-color:var(--navy);
+    box-shadow:0 0 0 3px var(--navy-ring);
   }
   .profile-readonly{
     font-size:12.5px;
@@ -137,37 +135,45 @@
   }
   .profile-readonly .row{margin-bottom:6px;}
   .profile-readonly .row span.k{
-    color:var(--ink-soft);
+    color:var(--ink-muted);
     font-size:10.5px;
     display:block;
   }
+  /* --- Buttons --- */
   .btn{
     font-family:inherit;
     font-size:12.5px;
-    font-weight:700;
-    border-radius:7px;
+    font-weight:600;
+    border-radius:12px;
     border:none;
     padding:8px 14px;
     cursor:pointer;
-    transition:transform .12s ease, box-shadow .12s ease;
+    transition:background 0.12s ease;
   }
-  .btn:active{transform:translateY(1px);}
-  .btn-primary{background:var(--persimmon); color:#fff;}
-  .btn-primary:hover{background:var(--persimmon-deep);}
-  .btn-ghost{background:transparent; color:var(--ink-soft); border:1px solid var(--line);}
-  .btn-ghost:hover{border-color:var(--persimmon);}
-  .btn:disabled{opacity:0.55; cursor:not-allowed;}
-  /* --- Generator section --- */
+  .btn:active{opacity:0.85;}
+  .btn-primary{background:var(--navy); color:#fff;}
+  .btn-primary:hover{background:var(--navy-hover);}
+  .btn-primary:active{background:var(--navy-active);}
+  .btn-ghost{
+    background:var(--surface);
+    color:#374151;
+    border:1px solid var(--border-input);
+  }
+  .btn-ghost:hover{background:#F9FAFB;}
+  .btn:disabled{opacity:0.45; cursor:not-allowed;}
+  /* --- Generator --- */
   .gen-input textarea{
     width:100%;
     min-height:78px;
     font-family:inherit;
     font-size:14px;
     padding:12px 14px;
-    border:1px solid var(--line);
-    border-radius:10px;
-    background:#fff;
+    border:1px solid var(--border-input);
+    border-radius:12px;
+    background:var(--surface);
+    color:var(--ink);
     line-height:1.6;
+    transition:border-color 0.15s, box-shadow 0.15s;
   }
   .event-row{
     display:flex;
@@ -180,9 +186,9 @@
     display:flex;
     align-items:center;
     gap:6px;
-    background:#fff;
-    border:1px solid var(--line);
-    border-radius:8px;
+    background:var(--surface);
+    border:1px solid var(--border-input);
+    border-radius:12px;
     padding:6px 10px;
   }
   .event-field label{
@@ -198,17 +204,18 @@
     outline:none;
     color:var(--ink);
     width:120px;
+    background:transparent;
   }
   .event-field.time input{width:110px;}
   .event-clear{
     font-size:11px;
-    color:var(--ink-soft);
+    color:var(--ink-muted);
     background:none;
     border:none;
-    text-decoration:underline;
     cursor:pointer;
     padding:0 4px;
   }
+  .event-clear:hover{color:var(--ink-soft);}
   .gen-row{
     display:flex;
     flex-wrap:wrap;
@@ -220,17 +227,18 @@
   .tone-chip{
     font-family:inherit;
     font-size:12px;
-    padding:6px 12px;
-    border-radius:999px;
-    border:1px solid var(--line);
-    background:#fff;
+    padding:5px 12px;
+    border-radius:9999px;
+    border:1px solid var(--border-input);
+    background:var(--surface);
     cursor:pointer;
     color:var(--ink-soft);
+    transition:background 0.1s, color 0.1s, border-color 0.1s;
   }
   .tone-chip.active{
-    background:var(--ink);
-    color:var(--paper);
-    border-color:var(--ink);
+    background:var(--navy);
+    color:#fff;
+    border-color:var(--navy);
   }
   .gen-cta{margin-left:auto;}
   .status-line{
@@ -239,39 +247,26 @@
     margin-top:10px;
     min-height:16px;
   }
-  .status-line.error{color:var(--persimmon-deep);}
-  /* --- Result cards (memo / index card signature) --- */
+  .status-line.error{color:#DC2626;}
+  /* --- Result cards --- */
   .results{
-    margin-top:22px;
+    margin-top:20px;
     display:grid;
-    gap:16px;
+    gap:12px;
   }
   .memo-card{
-    background:#FFFDF8;
-    border:1px solid var(--line);
-    border-radius:4px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
     padding:18px 18px 16px;
-    position:relative;
-    box-shadow:0 2px 0 rgba(0,0,0,0.03), 0 8px 18px -12px rgba(0,0,0,0.25);
+    box-shadow:0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
   }
-  .memo-card::before{
-    content:"";
-    position:absolute;
-    top:-7px; left:24px;
-    width:46px; height:16px;
-    background:var(--washi);
-    opacity:0.85;
-    transform:rotate(-3deg);
-    box-shadow:0 1px 2px rgba(0,0,0,0.15);
-  }
-  .memo-card:nth-child(2){transform:rotate(0.4deg);}
-  .memo-card:nth-child(3){transform:rotate(-0.5deg);}
   .memo-angle{
     font-size:10.5px;
-    letter-spacing:0.08em;
-    color:var(--moss);
-    font-weight:700;
-    margin:6px 0 8px;
+    letter-spacing:0.06em;
+    color:var(--navy);
+    font-weight:600;
+    margin:0 0 8px;
     text-transform:uppercase;
   }
   .memo-text{
@@ -279,6 +274,7 @@
     line-height:1.85;
     white-space:pre-wrap;
     margin:0 0 14px;
+    color:var(--ink);
   }
   .memo-actions{
     display:flex;
@@ -286,17 +282,17 @@
     justify-content:flex-end;
   }
   .memo-subject{
-    font-family:'Shippori Mincho B1', serif;
-    font-size:15px;
     font-weight:700;
-    margin:0 0 6px;
+    font-size:15px;
+    margin:0 0 8px;
     line-height:1.5;
+    color:var(--ink);
   }
   .fixed-preview{
     margin-top:14px;
-    background:#FBF3DF;
-    border:1px dashed var(--washi);
-    border-radius:8px;
+    background:#F8FAFC;
+    border:1px solid var(--border);
+    border-radius:12px;
     padding:12px 14px;
     font-size:12px;
     color:var(--ink-soft);
@@ -305,36 +301,35 @@
   }
   .fixed-preview .fp-label{
     font-size:10.5px;
-    font-weight:700;
-    color:var(--persimmon-deep);
+    font-weight:600;
+    color:var(--navy);
     letter-spacing:0.04em;
     display:block;
     margin-bottom:4px;
   }
-  /* --- History (corkboard) --- */
+  /* --- History board --- */
   .board{
-    margin-top:30px;
-    background:var(--board);
-    background-image:
-      radial-gradient(rgba(255,255,255,0.025) 1px, transparent 1px);
-    background-size:6px 6px;
-    border-radius:12px;
-    padding:18px 18px 14px;
+    margin-top:24px;
+    background:#F8FAFC;
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:16px 16px 14px;
   }
   .board-title{
-    font-family:'Shippori Mincho B1', serif;
-    color:var(--washi);
-    font-size:14px;
-    font-weight:700;
+    font-size:12px;
+    font-weight:600;
+    color:var(--ink-soft);
     margin:0 0 12px;
     display:flex;
     align-items:center;
-    gap:8px;
+    gap:6px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
   }
   .board-empty{
-    color:#C9BFA8;
+    color:var(--ink-muted);
     font-size:12px;
-    padding:10px 2px 6px;
+    padding:6px 2px;
     line-height:1.7;
   }
   .board-list{
@@ -342,22 +337,15 @@
     gap:8px;
   }
   .pin-item{
-    background:#FFFCF5;
-    border-radius:5px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
     padding:10px 12px;
     font-size:12.5px;
     line-height:1.6;
-    position:relative;
     color:var(--ink);
-    box-shadow:0 4px 10px -6px rgba(0,0,0,0.6);
   }
-  .pin-item .pin-dot{
-    width:7px;height:7px;border-radius:50%;
-    background:var(--persimmon);
-    position:absolute;
-    top:-4px;left:14px;
-    box-shadow:0 1px 1px rgba(0,0,0,0.3);
-  }
+  .pin-item .pin-dot{display:none;}
   .pin-meta{
     display:flex;
     justify-content:space-between;
@@ -365,22 +353,17 @@
     gap:8px;
     margin-bottom:3px;
   }
-  .pin-date{font-size:10.5px; color:var(--ink-soft);}
+  .pin-date{font-size:10.5px; color:var(--ink-muted);}
   .pin-del{
     background:none; border:none; cursor:pointer;
-    font-size:11px; color:var(--ink-soft);
-    text-decoration:underline;
+    font-size:11px; color:var(--ink-muted);
     padding:0;
     flex-shrink:0;
   }
-  .pin-del:hover{color:var(--persimmon-deep);}
+  .pin-del:hover{color:#DC2626;}
   .pin-text{color:var(--ink-soft);}
-  .sr-copy-helper{
-    position:absolute;
-    left:-9999px;
-    top:-9999px;
-  }
-  /* --- Calendar / integration panel --- */
+  .sr-copy-helper{position:absolute;left:-9999px;top:-9999px;}
+  /* --- Calendar panel --- */
   .cal-panel{margin-top:16px;}
   .cal-status{
     display:flex;
@@ -392,18 +375,18 @@
   }
   .cal-dot{
     width:7px;height:7px;border-radius:50%;
-    background:#C9BFA8;
+    background:var(--border-input);
     flex-shrink:0;
   }
-  .cal-dot.connected{background:var(--moss);}
-  .btn-small{font-size:11.5px; padding:6px 12px;}
+  .cal-dot.connected{background:#16A34A;}
+  .btn-small{font-size:11.5px; padding:5px 11px;}
   .cal-event-field{
     display:flex;
     align-items:center;
     gap:6px;
-    background:#fff;
-    border:1px solid var(--line);
-    border-radius:8px;
+    background:var(--surface);
+    border:1px solid var(--border-input);
+    border-radius:12px;
     padding:6px 10px;
     flex:1 1 180px;
   }
@@ -420,6 +403,7 @@
     outline:none;
     color:var(--ink);
     width:100%;
+    background:transparent;
   }
   .cal-add-row{
     display:flex;
@@ -429,10 +413,9 @@
     flex-wrap:wrap;
   }
   .memo-cal-title{
-    font-family:'Shippori Mincho B1', serif;
     font-size:13px;
-    font-weight:700;
-    color:var(--persimmon-deep);
+    font-weight:600;
+    color:var(--navy);
     margin:4px 0 10px;
     line-height:1.5;
     word-break:break-all;
@@ -440,15 +423,16 @@
   /* --- Report panel --- */
   .report-panel{
     margin-top:16px;
-    background:var(--paper-deep);
-    border:1px solid var(--line);
-    border-radius:12px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
     padding:18px 18px 20px;
+    box-shadow:0 1px 2px rgba(0,0,0,0.04);
   }
   .report-event-info{
-    background:#fff;
-    border:1px solid var(--line);
-    border-radius:8px;
+    background:#F8FAFC;
+    border:1px solid var(--border);
+    border-radius:12px;
     padding:10px 12px;
     font-size:12.5px;
     line-height:1.7;
@@ -457,42 +441,45 @@
   }
   .report-event-info .ri-label{
     font-size:10.5px;
-    color:var(--ink-soft);
+    color:var(--ink-muted);
     display:block;
     margin-bottom:2px;
+    font-weight:500;
   }
   .report-event-info .ri-title{
-    font-family:'Shippori Mincho B1', serif;
     font-weight:700;
     font-size:14px;
-    color:var(--persimmon-deep);
+    color:var(--navy);
   }
   .report-panel-title{
-    font-family:'Shippori Mincho B1', serif;
     font-weight:700;
-    font-size:15px;
-    margin:0 0 10px;
+    font-size:14px;
+    margin:0 0 12px;
     color:var(--ink);
     display:flex;
     align-items:center;
     justify-content:space-between;
   }
-  .btn-report{background:var(--moss);color:#fff;font-size:11px;padding:5px 10px;border-radius:6px;border:none;cursor:pointer;font-family:inherit;font-weight:700;}
-  .btn-report:hover{opacity:0.88;}
-
-  /* --- Publish / Web連携 panel --- */
-  .photo-upload-area{
-    border:2px dashed var(--line);border-radius:10px;padding:14px;text-align:center;
-    cursor:pointer;transition:border-color 0.2s;position:relative;margin-bottom:8px;
-    background:#fff;font-size:12.5px;color:var(--ink-soft);
+  .btn-report{
+    background:var(--navy);color:#fff;font-size:11px;padding:5px 10px;
+    border-radius:8px;border:none;cursor:pointer;font-family:inherit;font-weight:600;
   }
-  .photo-upload-area:hover{border-color:var(--persimmon);}
+  .btn-report:hover{background:var(--navy-hover);}
+  /* --- Publish panel --- */
+  .photo-upload-area{
+    border:1px dashed var(--border-input);border-radius:12px;padding:14px;text-align:center;
+    cursor:pointer;transition:border-color 0.15s;position:relative;margin-bottom:8px;
+    background:#F8FAFC;font-size:12.5px;color:var(--ink-soft);
+  }
+  .photo-upload-area:hover{border-color:var(--navy);}
   .photo-upload-area input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
-  #photoPreview{width:100%;max-height:180px;object-fit:cover;border-radius:8px;margin-top:6px;display:none;}
-  .btn-publish{background:var(--persimmon);color:#fff;font-size:12px;padding:7px 14px;
-    border-radius:8px;border:none;cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap;}
-  .btn-publish:hover{background:var(--persimmon-deep);}
-  .btn-publish:disabled{opacity:0.5;cursor:not-allowed;}
+  #photoPreview{width:100%;max-height:180px;object-fit:cover;border-radius:10px;margin-top:6px;display:none;}
+  .btn-publish{
+    background:var(--navy);color:#fff;font-size:12px;padding:7px 14px;
+    border-radius:12px;border:none;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap;
+  }
+  .btn-publish:hover{background:var(--navy-hover);}
+  .btn-publish:disabled{opacity:0.45;cursor:not-allowed;}
   .pub-status{font-size:12px;color:var(--ink-soft);margin:4px 0 2px;}
   @media (prefers-reduced-motion: reduce){
     .btn, .memo-card{transition:none;}
@@ -505,6 +492,9 @@
     <div class="zuppa-eyebrow">SALON DE ZUPPA / ネタ帳</div>
     <div class="zuppa-title">投稿文ジェネレーター</div>
     <div class="zuppa-sub">テーマやキーワードを一言入れるだけで、Facebook投稿の下書きを3パターン作ります。何も思いつかない日は空欄のまま「作成する」を押してください。</div>
+    <div style="margin-top:10px;">
+      <button class="btn btn-primary btn-small" id="directReportBtn">📝 報告文を直接作成する</button>
+    </div>
   </div>
   <div class="zuppa-body">
     <!-- LEFT: profile panel -->
@@ -607,16 +597,16 @@
           <button class="btn btn-ghost btn-small" id="listingPreviewBtn">📋 一覧プレビュー</button>
           <button class="btn btn-ghost btn-small" id="redeployListingBtn">🔄 一覧を再デプロイ</button>
           <button class="btn btn-ghost btn-small" id="recoverBtn">🔧 不足イベントをSheetsに追加</button>
-          <button class="btn btn-ghost btn-small" id="cleanupBtn" style="color:var(--persimmon-deep);border-color:var(--persimmon);">🗑️ テストイベントを全削除</button>
+          <button class="btn btn-ghost btn-small" id="cleanupBtn" style="color:#DC2626;border-color:#FCA5A5;">🗑️ テストイベントを全削除</button>
         </div>
         <div class="status-line" id="recoverStatus" style="margin-top:6px;"></div>
         <!-- 削除確認パネル -->
-        <div id="cleanupConfirmPanel" style="display:none;margin-top:10px;background:#fff3f0;border:1px solid var(--persimmon);border-radius:8px;padding:10px 12px;">
-          <div style="font-size:12px;font-weight:700;color:var(--persimmon-deep);margin-bottom:6px;">🗑️ 以下のイベントページをNetlifyから削除します</div>
+        <div id="cleanupConfirmPanel" style="display:none;margin-top:10px;background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;padding:10px 12px;">
+          <div style="font-size:12px;font-weight:600;color:#DC2626;margin-bottom:6px;">🗑️ 以下のイベントページをNetlifyから削除します</div>
           <div id="cleanupList" style="font-size:11.5px;max-height:120px;overflow-y:auto;line-height:1.8;margin-bottom:8px;"></div>
           <div style="display:flex;gap:8px;">
             <button class="btn btn-ghost btn-small" id="cleanupCancel">キャンセル</button>
-            <button class="btn btn-small" id="cleanupConfirm" style="background:var(--persimmon-deep);color:#fff;">この内容で削除する</button>
+            <button class="btn btn-small" id="cleanupConfirm" style="background:#DC2626;color:#fff;">この内容で削除する</button>
           </div>
         </div>
       </div>
@@ -668,6 +658,17 @@
           <button class="btn btn-ghost btn-small" id="reportClose">閉じる</button>
         </div>
         <div class="report-event-info" id="reportEventInfo"></div>
+        <!-- 直接作成モード用の入力欄（コルクボードから開いた場合は非表示） -->
+        <div id="reportDirectFields" style="display:none;">
+          <div class="field">
+            <label for="reportDirectTitle">イベント名</label>
+            <input id="reportDirectTitle" type="text" placeholder="例：チーズケーキ教室">
+          </div>
+          <div class="field">
+            <label for="reportDirectDate">開催日時</label>
+            <input id="reportDirectDate" type="text" placeholder="例：2025年6月14日（土）13:00〜15:00">
+          </div>
+        </div>
         <div class="field">
           <label for="reportParticipants">参加人数</label>
           <input id="reportParticipants" type="text" placeholder="例：12名">
@@ -1057,6 +1058,8 @@
       <div class="ri-title">${escapeHtml(entry.subject || entry.theme || '（タイトルなし）')}</div>
       ${entry.eventLine ? `<div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;">📅 ${escapeHtml(entry.eventLine)}</div>` : ''}
     `;
+    // コルクボードから開いた場合は直接入力欄を隠す
+    document.getElementById('reportDirectFields').style.display = 'none';
     els.reportParticipants.value = '';
     els.reportNotes.value = '';
     els.reportResults.innerHTML = '';
@@ -1064,6 +1067,23 @@
     els.reportPanel.style.display = 'block';
     els.reportPanel.scrollIntoView({ behavior:'smooth', block:'start' });
   }
+
+  function openReportModeDirect(){
+    currentReportEntry = null;
+    els.reportEventInfo.innerHTML = '';
+    // 直接作成モード：イベント名・日時の入力欄を表示
+    document.getElementById('reportDirectFields').style.display = 'block';
+    document.getElementById('reportDirectTitle').value = '';
+    document.getElementById('reportDirectDate').value = '';
+    els.reportParticipants.value = '';
+    els.reportNotes.value = '';
+    els.reportResults.innerHTML = '';
+    els.reportStatusLine.textContent = '';
+    els.reportPanel.style.display = 'block';
+    els.reportPanel.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+
+  document.getElementById('directReportBtn')?.addEventListener('click', openReportModeDirect);
 
   els.reportClose.addEventListener('click', ()=>{
     els.reportPanel.style.display = 'none';
@@ -1079,8 +1099,13 @@
 
   function buildReportPrompt(){
     const entry = currentReportEntry;
-    const eventName = entry.subject || entry.theme || 'イベント';
-    const eventDate = entry.eventLine || '';
+    // 直接作成モード（entry=null）の場合は入力欄から取得
+    const eventName = entry
+      ? (entry.subject || entry.theme || 'イベント')
+      : (document.getElementById('reportDirectTitle').value.trim() || 'イベント');
+    const eventDate = entry
+      ? (entry.eventLine || '')
+      : (document.getElementById('reportDirectDate').value.trim() || '');
     const participants = els.reportParticipants.value.trim();
     const notes = els.reportNotes.value.trim();
     const profileText = `施設名: ${profile.name||'Salon de Zuppa'}\n場所: ${profile.place||'未設定'}\n言葉づかいの好み: ${profile.tone||'特になし'}`;
@@ -1964,7 +1989,7 @@ ${body}
     // Deploy to Netlify
     await netlifyDeploy(filesToDeploy, statusEl);
 
-    statusEl.innerHTML = `✅ 公開しました！ <a href="https://zuppa-lab.com/salon/event/${slug}/" target="_blank" rel="noopener" style="color:var(--persimmon-deep);text-decoration:underline;">https://zuppa-lab.com/salon/event/${slug}/</a> に反映されます。`;
+    statusEl.innerHTML = `✅ 公開しました！ <a href="https://zuppa-lab.com/salon/event/${slug}/" target="_blank" rel="noopener" style="color:var(--navy);text-decoration:underline;">https://zuppa-lab.com/salon/event/${slug}/</a> に反映されます。`;
     setTimeout(loadPubHistory, 3000);
   }
 
@@ -2033,7 +2058,7 @@ ${body}
         const url = slug ? `https://zuppa-lab.com/salon/event/${slug}/` : '';
         return `<div style="border-bottom:1px solid var(--line);padding:4px 0;">
           <span style="color:var(--ink-soft)">${date}</span>
-          ${url ? `<a href="${url}" target="_blank" style="color:var(--persimmon-deep);margin-left:6px;">${title||slug}</a>` : `<span style="margin-left:6px;">${title}</span>`}
+          ${url ? `<a href="${url}" target="_blank" style="color:var(--navy);margin-left:6px;">${title||slug}</a>` : `<span style="margin-left:6px;">${title}</span>`}
         </div>`;
       }).join('');
     }catch(e){ listEl.textContent = 'エラー: '+e.message; }
