@@ -1992,6 +1992,10 @@ ${body}
     const statusEl = document.getElementById('recoverStatus');
     if(!accessToken){ statusEl.textContent = '先にGoogleと連携してください。'; return; }
     if(!publishSettings.sheetsId){ statusEl.textContent = 'SheetsIDが設定されていません。'; return; }
+    // awaitの前にwindow.openを呼ぶ（Safariポップアップブロック回避）
+    const pw = window.open('', '_blank');
+    if(!pw){ statusEl.textContent = 'ポップアップがブロックされました。ブラウザの設定でこのサイトのポップアップを許可してください。'; return; }
+    pw.document.write('<p style="font-family:sans-serif;padding:2rem;color:#555">読み込み中…</p>');
     const origText = btn.textContent;
     btn.textContent = '生成中…';
     btn.disabled = true;
@@ -2001,12 +2005,12 @@ ${body}
       if(cssUrl) publishSettings._cssUrl = cssUrl;
       const buf = await buildListingFromSheets(publishSettings.sheetsId);
       const html = new TextDecoder().decode(buf);
-      const blob = new Blob([html], {type:'text/html'});
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(()=>URL.revokeObjectURL(url), 60000);
+      pw.document.open();
+      pw.document.write(html);
+      pw.document.close();
       statusEl.textContent = '✅ 新しいタブでプレビューを開きました。';
     }catch(e){
+      pw.document.write('<p style="font-family:sans-serif;padding:2rem;color:red">エラー: '+e.message+'</p>');
       statusEl.textContent = '❌ エラー: ' + e.message;
     }finally{
       btn.disabled = false;
@@ -2201,21 +2205,24 @@ ${body}
     const items = els.reportResults._items || [];
     const item = items[Number(previewBtn.dataset.index)];
     if(!item) return;
+    // awaitの前にwindow.openを呼ぶ（Safariポップアップブロック回避）
+    const pw = window.open('', '_blank');
+    if(!pw){ els.reportStatusLine.textContent = 'ポップアップがブロックされました。ブラウザの設定でこのサイトのポップアップを許可してください。'; return; }
+    pw.document.write('<p style="font-family:sans-serif;padding:2rem;color:#555">読み込み中…</p>');
     const origText = previewBtn.textContent;
     previewBtn.textContent = '生成中…';
     previewBtn.disabled = true;
     try{
       const entry = currentReportEntry || {};
       const slug = buildSlug(entry.eventDateISO) || 'preview-event';
-      // キャッシュ済みCSSを優先、なければliveサイトから1回だけ取得
       const cssUrl = publishSettings._cssUrl || await fetchSiteCSSUrl().catch(()=>null);
-      if(cssUrl) publishSettings._cssUrl = cssUrl; // 次回のためにキャッシュ
+      if(cssUrl) publishSettings._cssUrl = cssUrl;
       const htmlContent = buildEventHTML(item, entry, slug, null, cssUrl);
-      const blob = new Blob([htmlContent], {type:'text/html'});
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(()=>URL.revokeObjectURL(url), 60000);
+      pw.document.open();
+      pw.document.write(htmlContent);
+      pw.document.close();
     }catch(err){
+      pw.document.write('<p style="font-family:sans-serif;padding:2rem;color:red">エラー: '+err.message+'</p>');
       els.reportStatusLine.textContent = '❌ プレビューエラー: ' + err.message;
     }finally{
       previewBtn.disabled = false;
