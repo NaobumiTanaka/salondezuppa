@@ -1546,10 +1546,13 @@
   // ═══════════════════════════════════════════════════════════════════════════
   // EVENT HTML GENERATOR (matches zuppa-lab.com structure)
   // ═══════════════════════════════════════════════════════════════════════════
-  // Fetch site CSS URL from live page
+  // Fetch site CSS URL from live page (5秒タイムアウト付き)
   async function fetchSiteCSSUrl(){
     try{
-      const r = await fetch('https://zuppa-lab.com/salon/event/');
+      const ctrl = new AbortController();
+      const timer = setTimeout(()=>ctrl.abort(), 5000);
+      const r = await fetch('https://zuppa-lab.com/salon/event/', {signal: ctrl.signal});
+      clearTimeout(timer);
       const h = await r.text();
       const m = h.match(/href="(\/_astro\/[^"]+\.css)"/);
       return m ? 'https://zuppa-lab.com' + m[1] : null;
