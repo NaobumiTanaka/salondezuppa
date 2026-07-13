@@ -605,6 +605,7 @@
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
           <button class="btn btn-ghost btn-small" id="pubHistoryRefresh">↻ 更新</button>
           <button class="btn btn-ghost btn-small" id="listingPreviewBtn">📋 一覧プレビュー</button>
+          <button class="btn btn-ghost btn-small" id="redeployListingBtn">🔄 一覧を再デプロイ</button>
           <button class="btn btn-ghost btn-small" id="recoverBtn">🔧 不足イベントをSheetsに追加</button>
           <button class="btn btn-ghost btn-small" id="cleanupBtn" style="color:var(--persimmon-deep);border-color:var(--persimmon);">🗑️ テストイベントを全削除</button>
         </div>
@@ -2062,6 +2063,31 @@ ${body}
     }finally{
       btn.disabled = false;
       btn.textContent = origText;
+    }
+  });
+
+  // ─── 一覧を再デプロイ ──────────────────────────────────────────────────────
+  document.getElementById('redeployListingBtn')?.addEventListener('click', async ()=>{
+    const statusEl = document.getElementById('recoverStatus');
+    const btn = document.getElementById('redeployListingBtn');
+    if(!accessToken){ statusEl.textContent = '先にGoogleと連携してください。'; return; }
+    if(!publishSettings.netlifyToken || !publishSettings.netlifySiteId){
+      statusEl.textContent = 'Netlify設定が必要です。'; return;
+    }
+    if(!publishSettings.sheetsId){ statusEl.textContent = 'Sheets IDが必要です。'; return; }
+    btn.disabled = true;
+    statusEl.textContent = '⏳ 一覧ページを生成中…';
+    try{
+      const cssUrl = await fetchSiteCSSUrl();
+      publishSettings._cssUrl = cssUrl;
+      const listingBuf = await buildListingFromSheets(publishSettings.sheetsId);
+      statusEl.textContent = '⏳ Netlifyにデプロイ中…';
+      await netlifyDeploy([{ path:'/salon/event/index.html', buffer:listingBuf }], statusEl);
+      statusEl.textContent = '✅ 一覧ページを更新しました！';
+    }catch(e){
+      statusEl.textContent = '❌ エラー: '+e.message;
+    }finally{
+      btn.disabled = false;
     }
   });
 
