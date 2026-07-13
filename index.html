@@ -1560,7 +1560,9 @@
   }
 
   // Build listing page — Google Sheets（新イベント）+ 静的ルックアップ（旧Astroイベント）
-  async function buildListingFromSheets(sheetId){
+  // extraEvent: { date, slug, title } — publishReport から直接渡す新イベントデータ
+  // Sheetsの読み取りより前に slugMap へ挿入することで、read-after-write の問題を完全回避
+  async function buildListingFromSheets(sheetId, extraEvent = null){
     // ── ヘルパー ──────────────────────────────────────────────
     // 新スタイルスラッグ（salon-event-YYYYMMDD-xxxx）から日付を抽出
     function dateFromSlug(slug){
@@ -1629,10 +1631,22 @@
     if(!sr.ok){ const e = await sr.text(); throw new Error(`Sheets API ${sr.status}: ${e.slice(0,200)}`); }
     const sd = await sr.json();
 
-    // ── 2. slugMap を構築（Sheets → OLD_EVENTS の優先順位）──────
+    // ── 2. slugMap を構築（extraEvent → Sheets → OLD_EVENTS の優先順位）──────
     const slugMap = new Map();
 
-    // Sheetsの新イベント
+    // extraEvent を最初に挿入（Sheetsの読み取り結果で上書きされても構わない）
+    // これにより append 直後の read-after-write タイミング問題を完全に回避
+    if(extraEvent && extraEvent.slug){
+      const fromSlug = dateFromSlug(extraEvent.slug);
+      slugMap.set(extraEvent.slug, {
+        sortKey: fromSlug.sortKey,
+        date: extraEvent.date || fromSlug.display,
+        slug: extraEvent.slug,
+        title: extraEvent.title || extraEvent.slug
+      });
+    }
+
+    // Sheetsの新イベント（extraEventと重複する場合は Sheets の値で上書き）
     for(const r of (sd.values||[])){
       const [date, slug, title] = r;
       if(!slug) continue;
@@ -1653,7 +1667,7 @@
 
     const year = new Date().getFullYear();
     const items = entries.map(({date, slug, title})=>{
-      const safeTitle = title.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const safeTitle = title.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       return `<li class="py-4"> <a href="https://zuppa-lab.com/salon/event/${slug}" class="hover:underline"> <p class="text-xs text-navy-900/50 mb-1">${date}</p> <p class="font-bold">${safeTitle}</p> </a> </li>`;
     }).join('');
       const listingHTML = `<!DOCTYPE html>
@@ -1813,14 +1827,18 @@ ${body}
   }
 
   async function getExistingFiles(){
-    try{
-      const deploys = await netlifyFetch('GET',`/sites/${publishSettings.netlifySiteId}/deploys?state=ready&per_page=1`);
-      if(!deploys.length) return {};
-      const files = await netlifyFetch('GET',`/deploys/${deploys[0].id}/files`);
-      const manifest = {};
-      for(const f of files){ manifest[f.id] = f.sha; }
-      return manifest;
-    }catch(e){ console.warn('getExistingFiles error (non-fatal):', e); return {}; }
+    const deploys = await netlifyFetch('GET',`/sites/${publishSettings.netlifySiteId}/deploys?state=ready&per_page=1`);
+    if(!deploys.length) throw new Error('Netlifyに公開済みデプロイが見つかりません。Netlifyダッシュボードを確認してください。');
+    const files = await netlifyFetch('GET',`/deploys/${deploys[0].id}/files`);
+    console.log('[Netlify] f.id sample:', files[0]?.id); // パス形式確認用ログ
+    const manifest = {};
+    for(const f of files){
+      // f.id のスラッシュ有無を吸収して先頭スラッシュに統一
+      const key = f.id.startsWith('/') ? f.id : '/' + f.id;
+      manifest[key] = f.sha;
+    }
+    if(Object.keys(manifest).length === 0) throw new Error('既存ファイルの取得に失敗しました（0件）。Netlifyトークン・サイトIDを確認してください。');
+    return manifest;
   }
 
   async function netlifyDeploy(newFiles, statusEl){
@@ -1834,8 +1852,10 @@ ${body}
     for(const f of newFiles){
       const buf = f.buffer instanceof ArrayBuffer ? f.buffer : await f.buffer;
       const hash = await sha1hex(buf);
-      fileManifest[f.path] = hash;
-      sha1Map[hash] = { path:f.path, buffer:buf };
+      // getExistingFiles と同様に先頭スラッシュに統一
+      const normalizedPath = f.path.startsWith('/') ? f.path : '/' + f.path;
+      fileManifest[normalizedPath] = hash;
+      sha1Map[hash] = { path: normalizedPath, buffer: buf };
     }
 
     statusEl.textContent = '⏳ デプロイを作成中…';
@@ -1848,15 +1868,33 @@ ${body}
       const f = sha1Map[sha];
       if(!f){ console.warn('SHA not found in sha1Map:', sha, 'Available:', Object.keys(sha1Map)); continue; }
       statusEl.textContent = `⏳ アップロード中: ${f.path}`;
-      await netlifyFetch('PUT',`/deploys/${deployId}/files${f.path}`, f.buffer, true);
+      // f.path は先頭スラッシュあり（例: /salon/event/index.html）
+      // → replace で除去して /deploys/{id}/files/salon/event/index.html に
+      await netlifyFetch('PUT',`/deploys/${deployId}/files/${f.path.replace(/^\//, '')}`, f.buffer, true);
     }
-    // Poll until deploy is ready (max 30s)
-    for(let i=0;i<15;i++){
+    // Poll until deploy is ready (max 60s)
+    let deployed = false;
+    for(let i=0;i<30;i++){
       await new Promise(r=>setTimeout(r,2000));
       const check = await netlifyFetch('GET',`/deploys/${deployId}`);
-      if(check.state === 'ready'){ statusEl.textContent = '✅ デプロイ完了！'; break; }
-      if(check.state === 'error'){ throw new Error('Netlifyデプロイエラー: '+check.error_message); }
+      if(check.state === 'ready'){ statusEl.textContent = '✅ デプロイ完了！'; deployed = true; break; }
+      if(check.state === 'error'){ throw new Error('Netlifyデプロイエラー: '+(check.error_message||'不明なエラー')); }
+      statusEl.textContent = `⏳ デプロイ処理中… (${i+1}/30)`;
     }
+    if(!deployed) throw new Error('デプロイがタイムアウトしました（60秒）。Netlifyダッシュボードで状態を確認してください。');
+
+    // デプロイが production として反映されたか確認
+    try{
+      const finalDeploy = await netlifyFetch('GET',`/deploys/${deployId}`);
+      const ctx = finalDeploy.context || '(不明)';
+      const url = finalDeploy.deploy_url || '';
+      console.log(`[Netlify] deploy context: ${ctx}, url: ${url}`);
+      if(ctx !== 'production'){
+        // production でない場合は画面に警告を出す（エラーではなく注意）
+        statusEl.textContent = `⚠️ デプロイ完了（context: ${ctx}）。Netlifyダッシュボードで「Publish deploy」を手動で押してください。`;
+      }
+    }catch(e){ console.warn('[Netlify] context check failed (non-fatal):', e); }
+
     return deployId;
   }
 
@@ -1906,28 +1944,21 @@ ${body}
     // ① 先にSheetsへ保存（新イベントを一覧生成前に登録）
     statusEl.textContent = '⏳ Google Sheetsに保存中…';
     const now = new Date().toISOString().slice(0,10);
-    await appendRows(sheetId,'Events',[[
+    const appendResult = await appendRows(sheetId,'Events',[[
       dateDisplay, slug, item.subject||'',
       (item.caption||'').slice(0,120), item.caption||'',
       entry.subject||entry.theme||'', now
     ]]);
+    console.log('[Sheets] append result:', JSON.stringify(appendResult?.updates || appendResult).slice(0,200));
 
-    // ② Sheets保存後に一覧ページを生成（新イベントが含まれる）
+    // ② 一覧ページを生成（新イベントをメモリから渡して確実に含める）
     statusEl.textContent = '⏳ 一覧ページを生成中…';
     publishSettings._cssUrl = cssUrl;
-    let listingBuf = null;
-    try{
-      listingBuf = await buildListingFromSheets(sheetId);
-    }catch(e){
-      statusEl.textContent = `⚠️ 一覧生成エラー: ${e.message} — イベントページのみ公開します`;
-      await new Promise(r=>setTimeout(r,2000));
-    }
-    // Always deploy _redirects so /salon/event/ points to our index.html
-    const redirectsContent = '/salon/event/ /salon/event/index.html 200\n';
-    filesToDeploy.push({ path:'/_redirects', buffer:new TextEncoder().encode(redirectsContent).buffer });
-    if(listingBuf){
-      filesToDeploy.push({ path:'/salon/event/index.html', buffer:listingBuf });
-    }
+    // extraEvent を渡すことで Sheets の read-after-write 問題を完全回避
+    // buildListingFromSheets がエラーの場合はそのまま throw してデプロイを中止
+    const extraEvent = { date: dateDisplay, slug, title: item.subject || '' };
+    const listingBuf = await buildListingFromSheets(sheetId, extraEvent);
+    filesToDeploy.push({ path:'/salon/event/index.html', buffer:listingBuf });
 
     // Deploy to Netlify
     await netlifyDeploy(filesToDeploy, statusEl);
