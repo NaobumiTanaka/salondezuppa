@@ -1631,7 +1631,7 @@
     const year = new Date().getFullYear();
     const items = entries.map(({date, slug, title})=>{
       const safeTitle = title.replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      return `<li class="py-4"> <a href="/salon/event/${slug}" class="hover:underline"> <p class="text-xs text-navy-900/50 mb-1">${date}</p> <p class="font-bold">${safeTitle}</p> </a> </li>`;
+      return `<li class="py-4"> <a href="https://zuppa-lab.com/salon/event/${slug}" class="hover:underline"> <p class="text-xs text-navy-900/50 mb-1">${date}</p> <p class="font-bold">${safeTitle}</p> </a> </li>`;
     }).join('');
       const listingHTML = `<!DOCTYPE html>
 <html lang="ja">
@@ -1739,7 +1739,7 @@
 </header>
 <main>
   <article class="max-w-3xl mx-auto px-5 py-20">
-    <a href="/salon/event/" class="text-xs text-navy-600 underline">← イベント記録一覧に戻る</a>
+    <a href="https://zuppa-lab.com/salon/event/" class="text-xs text-navy-600 underline">← イベント記録一覧に戻る</a>
     <h1 class="font-serif text-2xl font-bold mt-6 mb-3">${title}</h1>
     <p class="text-xs text-navy-900/50 mb-8">${dateDisplay}</p>
 ${imgTag}
