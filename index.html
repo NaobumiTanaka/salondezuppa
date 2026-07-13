@@ -382,6 +382,14 @@
   }
   .cal-dot.connected{background:#16A34A;}
   .btn-small{font-size:11.5px; padding:5px 11px;}
+  .time-row{display:flex;align-items:center;gap:6px;margin-top:4px;}
+  .time-select{
+    font-family:inherit;font-size:13px;padding:6px 8px;
+    border:1px solid var(--border-input);border-radius:8px;
+    background:var(--surface);color:var(--ink);cursor:pointer;
+    flex:1;min-width:0;
+  }
+  .time-sep{font-size:13px;color:var(--ink-soft);flex-shrink:0;}
   .cal-event-field{
     display:flex;
     align-items:center;
@@ -629,8 +637,13 @@
             <input id="eventDate" type="date">
           </div>
           <div class="event-field time">
-            <label for="eventTime">時間</label>
-            <input id="eventTime" type="text" placeholder="10:00〜15:00">
+            <label>時間</label>
+            <div class="time-row">
+              <select id="eventTimeStart" class="time-select"></select>
+              <span class="time-sep">〜</span>
+              <select id="eventTimeEnd" class="time-select"></select>
+            </div>
+            <input type="hidden" id="eventTime">
           </div>
           <button class="event-clear" id="eventClear" type="button">日時をクリア</button>
         </div>
@@ -667,8 +680,13 @@
             <input id="reportDirectTitle" type="text" placeholder="例：チーズケーキ教室">
           </div>
           <div class="field">
-            <label for="reportDirectDate">開催日時</label>
-            <input id="reportDirectDate" type="text" placeholder="例：2025年6月14日（土）13:00〜15:00">
+            <label for="reportDirectDate">開催日</label>
+            <input id="reportDirectDate" type="date">
+            <div class="time-row">
+              <select id="reportDirectStartTime" class="time-select"></select>
+              <span class="time-sep">〜</span>
+              <select id="reportDirectEndTime" class="time-select"></select>
+            </div>
           </div>
         </div>
         <div class="field">
@@ -916,7 +934,43 @@
     if(!tokenClient){ setupTokenClient(); }
     if(tokenClient){ tokenClient.requestAccessToken({ prompt:'' }); }
   });
-  function parseTimeRange(timeStr){
+  // ── 時間プルダウン初期化 ─────────────────────────────────────────────────────
+  function buildTimeOptions(){
+    let html = '<option value="">-- 時間 --</option>';
+    for(let h = 7; h <= 23; h++){
+      for(let m of [0, 30]){
+        if(h === 23 && m === 30) continue;
+        const val = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+        html += '<option value="'+val+'">'+val+'</option>';
+      }
+    }
+    return html;
+  }
+  const timeOptionsHtml = buildTimeOptions();
+  ['eventTimeStart','eventTimeEnd','reportDirectStartTime','reportDirectEndTime'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.innerHTML = timeOptionsHtml;
+  });
+  function syncEventTime(){
+    const s = document.getElementById('eventTimeStart').value;
+    const e = document.getElementById('eventTimeEnd').value;
+    els.eventTime.value = (s && e) ? s+'〜'+e : (s || e || '');
+  }
+  document.getElementById('eventTimeStart').addEventListener('change', syncEventTime);
+  document.getElementById('eventTimeEnd').addEventListener('change', syncEventTime);
+  function getReportDirectDateStr(){
+    const dateVal = document.getElementById('reportDirectDate').value;
+    if(!dateVal) return '';
+    const d = new Date(dateVal + 'T00:00:00');
+    const youbi = ['日','月','火','水','木','金','土'][d.getDay()];
+    const dateFormatted = d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日（'+youbi+'）';
+    const s = document.getElementById('reportDirectStartTime').value;
+    const e = document.getElementById('reportDirectEndTime').value;
+    const timeStr = (s && e) ? s+'〜'+e : (s || '');
+    return timeStr ? dateFormatted+' '+timeStr : dateFormatted;
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
+    function parseTimeRange(timeStr){
     const matches = (timeStr || '').match(/(\d{1,2}):(\d{2})/g) || [];
     if(matches.length === 0) return null;
     const toParts = (t) => { const [h,m] = t.split(':').map(Number); return {h,m}; };
@@ -1005,6 +1059,8 @@
   els.eventClear.addEventListener('click', ()=>{
     els.eventDate.value = '';
     els.eventTime.value = '';
+    document.getElementById('eventTimeStart').value = '';
+    document.getElementById('eventTimeEnd').value = '';
   });
   function formatEventDate(dateStr){
     if(!dateStr) return '';
@@ -1077,6 +1133,8 @@
     document.getElementById('reportDirectFields').style.display = 'block';
     document.getElementById('reportDirectTitle').value = '';
     document.getElementById('reportDirectDate').value = '';
+    document.getElementById('reportDirectStartTime').value = '';
+    document.getElementById('reportDirectEndTime').value = '';
     els.reportParticipants.value = '';
     els.reportNotes.value = '';
     els.reportResults.innerHTML = '';
@@ -1107,7 +1165,7 @@
       : (document.getElementById('reportDirectTitle').value.trim() || 'イベント');
     const eventDate = entry
       ? (entry.eventLine || '')
-      : (document.getElementById('reportDirectDate').value.trim() || '');
+      : getReportDirectDateStr();
     const participants = els.reportParticipants.value.trim();
     const notes = els.reportNotes.value.trim();
     const profileText = `施設名: ${profile.name||'Salon de Zuppa'}\n場所: ${profile.place||'未設定'}\n言葉づかいの好み: ${profile.tone||'特になし'}`;
