@@ -2083,9 +2083,11 @@ ${body}
       const files = await netlifyFetch('GET',`/deploys/${deploys[0].id}/files`);
 
       // 2. salon-event-YYYYMMDD-xxxx スラッグを抽出
+      // f.id のスラッシュ有無を吸収してから照合（A修正）
       const netlifySlugSet = new Set();
       for(const f of files){
-        const m = (f.id||'').match(/^\/salon\/event\/(salon-event-\d{8}-\w+)\/index\.html$/);
+        const id = (f.id||'').startsWith('/') ? f.id : '/' + f.id;
+        const m = id.match(/^\/salon\/event\/(salon-event-\d{8}-\w+)\/index\.html$/);
         if(m) netlifySlugSet.add(m[1]);
       }
       statusEl.textContent = `⏳ Netlify上に${netlifySlugSet.size}件のイベントページを確認。Sheetsと照合中…`;
@@ -2130,9 +2132,7 @@ ${body}
       const cssUrl = await fetchSiteCSSUrl();
       publishSettings._cssUrl = cssUrl;
       const listingBuf = await buildListingFromSheets(publishSettings.sheetsId);
-      const redirectsContent = '/salon/event/ /salon/event/index.html 200\n';
       const filesToDeploy = [
-        { path:'/_redirects', buffer:new TextEncoder().encode(redirectsContent).buffer },
         { path:'/salon/event/index.html', buffer:listingBuf },
       ];
       await netlifyDeploy(filesToDeploy, statusEl);
@@ -2163,7 +2163,9 @@ ${body}
       const files = await netlifyFetch('GET',`/deploys/${deploys[0].id}/files`);
       _cleanupSlugs = [];
       for(const f of files){
-        const m = (f.id||'').match(/^\/salon\/event\/(salon-event-\d{8}-\w+)\//);
+        // f.id のスラッシュ有無を吸収してから照合（A修正）
+        const id = (f.id||'').startsWith('/') ? f.id : '/' + f.id;
+        const m = id.match(/^\/salon\/event\/(salon-event-\d{8}-\w+)\//);
         if(m && !_cleanupSlugs.includes(m[1])) _cleanupSlugs.push(m[1]);
       }
       if(!_cleanupSlugs.length){
@@ -2193,14 +2195,15 @@ ${body}
     confirmBtn.disabled = true;
     statusEl.textContent = '⏳ 削除用デプロイを準備中…';
     try{
-      // 既存ファイルを取得してsalon-event-*を除いたマニフェストを作成
-      const deploys = await netlifyFetch('GET',`/sites/${publishSettings.netlifySiteId}/deploys?state=ready&per_page=1`);
-      const files = await netlifyFetch('GET',`/deploys/${deploys[0].id}/files`);
+      // B/C修正: getExistingFiles() を使って正規化済みマニフェストを取得
+      statusEl.textContent = '⏳ 既存ファイルを取得中…';
+      const existing = await getExistingFiles(); // 正規化・空チェック済み
       const slugSet = new Set(_cleanupSlugs);
       const fileManifest = {};
-      for(const f of files){
-        const isTestEvent = _cleanupSlugs.some(s => (f.id||'').includes('/'+s+'/'));
-        if(!isTestEvent) fileManifest[f.id] = f.sha;
+      for(const [path, sha] of Object.entries(existing)){
+        // 正規化済みキー（先頭スラッシュあり）でテストイベントをフィルタ
+        const isTestEvent = _cleanupSlugs.some(s => path.includes('/'+s+'/'));
+        if(!isTestEvent) fileManifest[path] = sha;
       }
       // 一覧ページ（OLD_EVENTSのみ）を再生成
       statusEl.textContent = '⏳ 一覧ページを再生成中…';
@@ -2209,10 +2212,8 @@ ${body}
       // Sheetsが空の場合でもbuildListingFromSheetsを呼ぶ（OLD_EVENTSのみ表示）
       let listingBuf = null;
       try{ listingBuf = await buildListingFromSheets(publishSettings.sheetsId||'dummy'); }catch(e){}
-      const redirectsContent = '/salon/event/ /salon/event/index.html 200\n';
-      const redirectsBuf = new TextEncoder().encode(redirectsContent).buffer;
+      // C修正: 既存キーと同じ正規化形式（先頭スラッシュあり）で追加
       if(listingBuf) fileManifest['/salon/event/index.html'] = await sha1hex(listingBuf);
-      fileManifest['/_redirects'] = await sha1hex(redirectsBuf);
       // デプロイ作成
       statusEl.textContent = '⏳ デプロイを作成中（テストイベントを除外）…';
       const deploy = await netlifyFetch('POST',`/sites/${publishSettings.netlifySiteId}/deploys`,{ files:fileManifest });
@@ -2221,20 +2222,32 @@ ${body}
       // 新しいファイルのみアップロード
       const uploadMap = {};
       if(listingBuf){ const h=await sha1hex(listingBuf); uploadMap[h]={path:'/salon/event/index.html',buffer:listingBuf}; }
-      const rbuf=redirectsBuf; const rh=await sha1hex(rbuf); uploadMap[rh]={path:'/_redirects',buffer:rbuf};
       for(const sha of required){
         const f = uploadMap[sha];
         if(!f){ console.warn('required SHA not in uploadMap:', sha); continue; }
         statusEl.textContent = `⏳ アップロード中: ${f.path}`;
-        await netlifyFetch('PUT',`/deploys/${deployId}/files${f.path}`,f.buffer,true);
+        // D修正: netlifyDeploy() と同じ安全パターン（replace で先頭スラッシュ除去）
+        await netlifyFetch('PUT',`/deploys/${deployId}/files/${f.path.replace(/^\//, '')}`,f.buffer,true);
       }
-      // デプロイ完了待機
-      for(let i=0;i<15;i++){
+      // デプロイ完了待機（60秒・タイムアウトでthrow）
+      let deployed = false;
+      for(let i=0;i<30;i++){
         await new Promise(r=>setTimeout(r,2000));
         const check = await netlifyFetch('GET',`/deploys/${deployId}`);
-        if(check.state==='ready'){ break; }
+        if(check.state==='ready'){ deployed = true; break; }
         if(check.state==='error'){ throw new Error('デプロイエラー: '+check.error_message); }
+        statusEl.textContent = `⏳ デプロイ処理中… (${i+1}/30)`;
       }
+      if(!deployed) throw new Error('デプロイがタイムアウトしました（60秒）。Netlifyダッシュボードで状態を確認してください。');
+      // production context確認
+      try{
+        const finalDeploy = await netlifyFetch('GET',`/deploys/${deployId}`);
+        const ctx = finalDeploy.context || '(不明)';
+        console.log(`[Netlify] cleanup deploy context: ${ctx}`);
+        if(ctx !== 'production'){
+          statusEl.textContent = `⚠️ デプロイ完了（context: ${ctx}）。Netlifyダッシュボードで「Publish deploy」を手動で押してください。`;
+        }
+      }catch(e){ console.warn('[Netlify] context check failed (non-fatal):', e); }
       document.getElementById('cleanupConfirmPanel').style.display = 'none';
       _cleanupSlugs = [];
       statusEl.textContent = `✅ ${slugSet.size}件のテストイベントを削除しました。一覧も更新されました。`;
