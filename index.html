@@ -11,13 +11,14 @@
     --surface:#FFFFFF;
     --border:#E5E7EB;
     --border-input:#D1D5DB;
-    --ink:#111827;
+    --ink:#0F172A;
     --ink-soft:#6B7280;
     --ink-muted:#9CA3AF;
     --navy:#1E3A5F;
     --navy-hover:#284B74;
     --navy-active:#16304E;
     --navy-ring:rgba(30,58,95,0.12);
+    --link:#2563EB;
     --line:#E5E7EB;
   }
   *{box-sizing:border-box;}
@@ -88,7 +89,7 @@
   }
   .panel-title button{
     font-size:11px;
-    color:var(--navy);
+    color:var(--link);
     background:none;
     border:none;
     cursor:pointer;
@@ -209,13 +210,13 @@
   .event-field.time input{width:110px;}
   .event-clear{
     font-size:11px;
-    color:var(--ink-muted);
+    color:var(--link);
     background:none;
     border:none;
     cursor:pointer;
     padding:0 4px;
   }
-  .event-clear:hover{color:var(--ink-soft);}
+  .event-clear:hover{opacity:0.75;}
   .gen-row{
     display:flex;
     flex-wrap:wrap;
@@ -1989,7 +1990,7 @@ ${body}
     // Deploy to Netlify
     await netlifyDeploy(filesToDeploy, statusEl);
 
-    statusEl.innerHTML = `✅ 公開しました！ <a href="https://zuppa-lab.com/salon/event/${slug}/" target="_blank" rel="noopener" style="color:var(--navy);text-decoration:underline;">https://zuppa-lab.com/salon/event/${slug}/</a> に反映されます。`;
+    statusEl.innerHTML = `✅ 公開しました！ <a href="https://zuppa-lab.com/salon/event/${slug}/" target="_blank" rel="noopener" style="color:var(--link);text-decoration:underline;">https://zuppa-lab.com/salon/event/${slug}/</a> に反映されます。`;
     setTimeout(loadPubHistory, 3000);
   }
 
@@ -2058,7 +2059,7 @@ ${body}
         const url = slug ? `https://zuppa-lab.com/salon/event/${slug}/` : '';
         return `<div style="border-bottom:1px solid var(--line);padding:4px 0;">
           <span style="color:var(--ink-soft)">${date}</span>
-          ${url ? `<a href="${url}" target="_blank" style="color:var(--navy);margin-left:6px;">${title||slug}</a>` : `<span style="margin-left:6px;">${title}</span>`}
+          ${url ? `<a href="${url}" target="_blank" style="color:var(--link);margin-left:6px;">${title||slug}</a>` : `<span style="margin-left:6px;">${title}</span>`}
         </div>`;
       }).join('');
     }catch(e){ listEl.textContent = 'エラー: '+e.message; }
