@@ -1123,7 +1123,6 @@
   }
 
   els.reportGenerateBtn.addEventListener('click', async ()=>{
-    if(!currentReportEntry){ return; }
     els.reportGenerateBtn.disabled = true;
     els.reportStatusLine.textContent = '考え中…';
     els.reportStatusLine.classList.remove('error');
