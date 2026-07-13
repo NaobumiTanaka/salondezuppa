@@ -1500,23 +1500,17 @@
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // PREVIEW OVERLAY（ページ内iframeで表示 — ポップアップ不要）
+  // PREVIEW（新しいタブで開く）
   // ═══════════════════════════════════════════════════════════════════════════
   function showPreviewOverlay(html){
-    document.querySelector('[data-zuppa-preview]')?.remove();
-    const overlay = document.createElement('div');
-    overlay.setAttribute('data-zuppa-preview','');
-    overlay.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;background:#fff;';
-    const bar = document.createElement('div');
-    bar.style.cssText='padding:8px 14px;background:#3B332B;color:#fff;display:flex;align-items:center;gap:10px;font-size:13px;font-family:inherit;flex-shrink:0;';
-    bar.innerHTML='<span style="font-weight:700;">👁️ プレビュー</span><span style="font-size:11px;opacity:0.6;margin-left:4px;">実際のページと見た目が異なる場合があります</span><button data-zuppa-close style="margin-left:auto;background:#B5562F;border:none;color:#fff;font-family:inherit;font-size:12px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;">✕ 閉じる</button>';
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText='width:100%;flex:1;border:none;';
-    iframe.srcdoc = html;
-    overlay.appendChild(bar);
-    overlay.appendChild(iframe);
-    document.body.appendChild(overlay);
-    bar.querySelector('[data-zuppa-close]').addEventListener('click',()=>overlay.remove());
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const tab = window.open(url, '_blank');
+    // BlobURLはタブが開いてから解放
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    if(!tab){
+      alert('ポップアップがブロックされました。ブラウザのポップアップ許可設定を確認してください。');
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
