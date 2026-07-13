@@ -1134,6 +1134,7 @@
         <div class="memo-actions">
           <button class="btn btn-ghost report-copy-btn" data-index="${i}">コピー</button>
           <button class="btn btn-ghost report-cal-btn" data-index="${i}">📅 カレンダーに書き込む</button>
+          <button class="btn btn-ghost report-preview-btn" data-index="${i}">👁️ プレビュー</button>
           <button class="btn btn-publish report-pub-btn" data-index="${i}">📊 保存 &amp; 🚀 公開</button>
         </div>
       </div>
@@ -2161,6 +2162,35 @@ ${body}
     }catch(e){
       statusEl.textContent = '❌ エラー: '+e.message;
       confirmBtn.disabled = false;
+    }
+  });
+
+  // ─── プレビューボタンのクリックハンドラ（Netlify/Sheets通信なし）────────────
+  els.reportResults.addEventListener('click', async (e)=>{
+    const previewBtn = e.target.closest('.report-preview-btn');
+    if(!previewBtn) return;
+    const items = els.reportResults._items || [];
+    const item = items[Number(previewBtn.dataset.index)];
+    if(!item) return;
+    const origText = previewBtn.textContent;
+    previewBtn.textContent = '生成中…';
+    previewBtn.disabled = true;
+    try{
+      const entry = currentReportEntry || {};
+      const slug = buildSlug(entry.eventDateISO) || 'preview-event';
+      // キャッシュ済みCSSを優先、なければliveサイトから1回だけ取得
+      const cssUrl = publishSettings._cssUrl || await fetchSiteCSSUrl().catch(()=>null);
+      if(cssUrl) publishSettings._cssUrl = cssUrl; // 次回のためにキャッシュ
+      const htmlContent = buildEventHTML(item, entry, slug, null, cssUrl);
+      const blob = new Blob([htmlContent], {type:'text/html'});
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(()=>URL.revokeObjectURL(url), 60000);
+    }catch(err){
+      els.reportStatusLine.textContent = '❌ プレビューエラー: ' + err.message;
+    }finally{
+      previewBtn.disabled = false;
+      previewBtn.textContent = origText;
     }
   });
 
