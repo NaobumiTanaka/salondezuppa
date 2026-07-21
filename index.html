@@ -181,6 +181,10 @@
       <div class="panel">
         <div class="panel-title">📝 イベント報告作成</div>
         <p class="panel-sub">開催したイベントの報告ページを作成してWebサイトに公開します。</p>
+        <div style="margin-bottom:14px;">
+          <button class="btn btn-ghost btn-small" id="repLoadBtn">📋 登録済みイベントから読み込む</button>
+          <select id="repLoadSelect" style="display:none;margin-top:6px;width:100%;font-size:13px;padding:8px 10px;border:1px solid var(--border-input);border-radius:8px;font-family:inherit;"></select>
+        </div>
         <div class="field">
           <label for="repTitle">イベント名</label>
           <input id="repTitle" type="text" placeholder="例：ワークショップ">
@@ -449,6 +453,20 @@ els.calAddEventBtn.addEventListener('click', async ()=>{
       body: JSON.stringify(built.event),
     });
     if(!res.ok){ const t = await res.text(); throw new Error('Calendar API error ' + res.status + ' ' + t); }
+    // Sheetsの「Registered」タブにも保存
+    const _savedTitle = els.eventTitle.value.trim() || 'イベント';
+    const _savedDate  = els.eventDate.value;
+    const _savedTs    = document.getElementById('eventTimeStart').value;
+    const _savedTe    = document.getElementById('eventTimeEnd').value;
+    const _savedDesc  = els.eventDesc.value.trim();
+    if(publishSettings.sheetsId && accessToken){
+      try{
+        await sheetsRequest('POST',
+          `/spreadsheets/${publishSettings.sheetsId}/values/Registered!A:E:append?valueInputOption=USER_ENTERED`,
+          { values: [[_savedDate, _savedTitle, _savedTs, _savedTe, _savedDesc]] }
+        );
+      }catch(e){ console.warn('Sheets保存失敗:', e); }
+    }
     els.calAddStatus.textContent = '✅ カレンダーに登録しました。';
     els.eventTitle.value = '';
     els.eventDate.value  = '';
@@ -832,6 +850,57 @@ async function netlifyDeploy(filesToDeploy, statusEl){
   // 時間プルダウンを再利用
   document.getElementById('repTimeStart').innerHTML = timeOptionsHtml;
   document.getElementById('repTimeEnd').innerHTML   = timeOptionsHtml;
+
+  // 登録済みイベント読み込み
+  document.getElementById('repLoadBtn').addEventListener('click', async ()=>{
+    const statusEl = document.getElementById('repStatus');
+    statusEl.classList.remove('error');
+    if(!accessToken){ statusEl.textContent = '先にGoogleと連携してください。'; return; }
+    if(!publishSettings.sheetsId){ statusEl.textContent = 'SheetsIDが必要です。'; return; }
+    const select = document.getElementById('repLoadSelect');
+    select.innerHTML = '<option>読み込み中…</option>';
+    select.style.display = 'block';
+    try{
+      const range = encodeURIComponent('Registered!A2:E');
+      const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${publishSettings.sheetsId}/values/${range}`,{
+        headers:{ Authorization:'Bearer '+accessToken }
+      });
+      const data = await res.json();
+      const rows = (data.values||[]).slice().reverse();
+      if(!rows.length){
+        select.innerHTML = '<option>（まだ登録がありません）</option>';
+        return;
+      }
+      select.innerHTML = '<option value="">-- イベントを選択 --</option>';
+      rows.forEach(r=>{
+        const [date, title, ts, te, desc] = r;
+        const opt = document.createElement('option');
+        opt.textContent = `${date||''}　${title||''}`;
+        opt.dataset.date  = date  ||'';
+        opt.dataset.title = title ||'';
+        opt.dataset.ts    = ts    ||'';
+        opt.dataset.te    = te    ||'';
+        opt.dataset.desc  = desc  ||'';
+        opt.value = '1';
+        select.appendChild(opt);
+      });
+      statusEl.textContent = '';
+    }catch(e){
+      select.innerHTML = '<option>エラー: '+e.message+'</option>';
+    }
+  });
+
+  document.getElementById('repLoadSelect').addEventListener('change', function(){
+    const opt = this.options[this.selectedIndex];
+    if(!opt.value) return;
+    document.getElementById('repTitle').value     = opt.dataset.title||'';
+    document.getElementById('repDate').value      = opt.dataset.date ||'';
+    document.getElementById('repTimeStart').value = opt.dataset.ts   ||'';
+    document.getElementById('repTimeEnd').value   = opt.dataset.te   ||'';
+    document.getElementById('repBody').value      = opt.dataset.desc ||'';
+    this.style.display = 'none';
+    this.value = '';
+  });
 
   // 写真プレビュー
   document.getElementById('repPhotos').addEventListener('change', function(){
