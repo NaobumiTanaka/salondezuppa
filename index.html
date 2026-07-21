@@ -639,7 +639,63 @@ document.getElementById('listingPreviewBtn')?.addEventListener('click', async ()
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 一覧を再デプロイ
+// トップページ更新（#eventセクションをSheetsの最新イベントで置換）
+// ═══════════════════════════════════════════════════════════════════════════
+async function buildTopPage(sheetId){
+  // Events tab: 最新3件取得（slug付きのもの）
+  const sr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent('Events!A2:C')}`,{
+    headers:{ Authorization:'Bearer '+accessToken }
+  });
+  const sd = await sr.json();
+  const rows = (sd.values||[]).filter(r=>r[1]&&r[2]);
+  const sorted = rows.slice().sort((a,b)=>{
+    const dt = s=>{ const m=(s||'').match(/(\d{8})/); return m?m[1]:'00000000'; };
+    return dt(b[1]).localeCompare(dt(a[1]));
+  });
+  const latest = sorted.slice(0,3);
+
+  // Registered tab: 説明文マップ（任意）
+  let descMap = {};
+  try{
+    const dr = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent('Registered!A2:E')}`,{
+      headers:{ Authorization:'Bearer '+accessToken }
+    });
+    const dd = await dr.json();
+    for(const row of (dd.values||[])){
+      const [,title,,,desc] = row;
+      if(title&&desc) descMap[title]=desc;
+    }
+  }catch(e){}
+
+  // トップページHTML取得
+  const ctrl = new AbortController();
+  setTimeout(()=>ctrl.abort(), 8000);
+  const pr = await fetch('https://zuppa-lab.com/salon/',{signal:ctrl.signal});
+  if(!pr.ok) throw new Error('トップページ取得失敗: '+pr.status);
+  const html = await pr.text();
+
+  // id="event" セクション内の <div class="space-y-10 mb-10"> を置換
+  const sectionIdx = html.indexOf('id="event"');
+  if(sectionIdx===-1) throw new Error('eventセクションが見つかりません');
+  const divMarker = '<div class="space-y-10 mb-10">';
+  const divStart  = html.indexOf(divMarker, sectionIdx);
+  if(divStart===-1) throw new Error('イベントカードコンテナが見つかりません');
+  const contentStart = divStart + divMarker.length;
+  const contentEnd   = html.indexOf('</div>', contentStart);
+
+  // 新カードを生成（既存CSSクラスをそのまま使用）
+  const newCards = latest.map(([date,slug,title])=>{
+    const desc = descMap[title]||'';
+    const descHtml = desc ? `<p class="text-sm text-navy-900/70 mt-2 leading-relaxed">${escapeHtml(desc)}</p>` : '';
+    return `<a href="/salon/event/${slug}" class="block group"><p class="text-xs text-navy-900/50 mb-1">${escapeHtml(date)}</p><h3 class="font-bold group-hover:underline">${escapeHtml(title)}</h3>${descHtml}</a>`;
+  }).join('');
+
+  const newHtml = html.substring(0, contentStart) + newCards + html.substring(contentEnd);
+  return new TextEncoder().encode(newHtml).buffer;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 一覧を再デプロイ（一覧 + トップページ同時更新）
 // ═══════════════════════════════════════════════════════════════════════════
 document.getElementById('redeployListingBtn')?.addEventListener('click', async ()=>{
   const statusEl = document.getElementById('recoverStatus');
@@ -648,14 +704,19 @@ document.getElementById('redeployListingBtn')?.addEventListener('click', async (
   if(!publishSettings.netlifyToken || !publishSettings.netlifySiteId){ statusEl.textContent = 'Netlify設定が必要です。'; return; }
   if(!publishSettings.sheetsId){ statusEl.textContent = 'Sheets IDが必要です。'; return; }
   btn.disabled = true;
-  statusEl.textContent = '⏳ 一覧ページを生成中…';
   try{
+    statusEl.textContent = '⏳ 一覧ページを生成中…';
     const cssUrl = await fetchSiteCSSUrl();
     publishSettings._cssUrl = cssUrl;
     const listingBuf = await buildListingFromSheets(publishSettings.sheetsId);
+    statusEl.textContent = '⏳ トップページを更新中…';
+    const topBuf = await buildTopPage(publishSettings.sheetsId);
     statusEl.textContent = '⏳ Netlifyにデプロイ中…';
-    await netlifyDeploy([{ path:'/salon/event/index.html', buffer:listingBuf }], statusEl);
-    statusEl.textContent = '✅ 一覧ページを更新しました！';
+    await netlifyDeploy([
+      { path:'/salon/event/index.html', buffer:listingBuf },
+      { path:'/salon/index.html',       buffer:topBuf }
+    ], statusEl);
+    statusEl.textContent = '✅ 一覧ページとトップページを更新しました！';
   }catch(e){
     statusEl.textContent = '❌ エラー: '+e.message;
   }finally{
