@@ -882,7 +882,7 @@
     calSettings = {
       clientId: els.calClientId.value.trim(),
       calendarId: els.calCalendarId.value.trim() || calSettings.calendarId,
-      apiKey: els.calApiKey.value.trim(),
+      apiKey: els.calApiKey.value.trim() || calSettings.apiKey,
     };
     try{ await storage.set('zuppa:calSettings', JSON.stringify(calSettings)); }catch(e){}
     setupTokenClient();
@@ -941,7 +941,7 @@
       for(let m of [0, 30]){
         if(h === 23 && m === 30) continue;
         const val = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
-        html += '<option value="'+val+'">'+val+'</option>';
+        html += `<option value="${val}">${val}</option>`;
       }
     }
     return html;
@@ -951,26 +951,28 @@
     const el = document.getElementById(id);
     if(el) el.innerHTML = timeOptionsHtml;
   });
+  // eventTimeStart/End → 非表示inputのeventTimeを同期
   function syncEventTime(){
     const s = document.getElementById('eventTimeStart').value;
     const e = document.getElementById('eventTimeEnd').value;
-    els.eventTime.value = (s && e) ? s+'〜'+e : (s || e || '');
+    els.eventTime.value = (s && e) ? `${s}〜${e}` : (s || e || '');
   }
   document.getElementById('eventTimeStart').addEventListener('change', syncEventTime);
   document.getElementById('eventTimeEnd').addEventListener('change', syncEventTime);
+  // 報告文直接モードの日時文字列を組み立てる
   function getReportDirectDateStr(){
     const dateVal = document.getElementById('reportDirectDate').value;
     if(!dateVal) return '';
     const d = new Date(dateVal + 'T00:00:00');
     const youbi = ['日','月','火','水','木','金','土'][d.getDay()];
-    const dateFormatted = d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日（'+youbi+'）';
+    const dateFormatted = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${youbi}）`;
     const s = document.getElementById('reportDirectStartTime').value;
     const e = document.getElementById('reportDirectEndTime').value;
-    const timeStr = (s && e) ? s+'〜'+e : (s || '');
-    return timeStr ? dateFormatted+' '+timeStr : dateFormatted;
+    const timeStr = (s && e) ? `${s}〜${e}` : (s || '');
+    return timeStr ? `${dateFormatted} ${timeStr}` : dateFormatted;
   }
   // ─────────────────────────────────────────────────────────────────────────────
-    function parseTimeRange(timeStr){
+  function parseTimeRange(timeStr){
     const matches = (timeStr || '').match(/(\d{1,2}):(\d{2})/g) || [];
     if(matches.length === 0) return null;
     const toParts = (t) => { const [h,m] = t.split(':').map(Number); return {h,m}; };
@@ -1188,9 +1190,13 @@
     els.reportResults.innerHTML = '';
     try{
       const { system, userMsg } = buildReportPrompt();
+      // calSettings.apiKeyが空の場合はlocalStorageから再読み込み
+      const apiKey = calSettings.apiKey || (()=>{
+        try{ return JSON.parse(localStorage.getItem('zuppa:calSettings')||'{}').apiKey||''; }catch(e){ return ''; }
+      })();
       const headers = { 'Content-Type': 'application/json' };
-      if(calSettings.apiKey){
-        headers['x-api-key'] = calSettings.apiKey;
+      if(apiKey){
+        headers['x-api-key'] = apiKey;
         headers['anthropic-version'] = '2023-06-01';
         headers['anthropic-dangerous-direct-browser-access'] = 'true';
       }
@@ -1485,9 +1491,12 @@
     els.results.innerHTML = '';
     try{
       const { system, userMsg, eventLine } = buildPrompt(theme);
+      const apiKey = calSettings.apiKey || (()=>{
+        try{ return JSON.parse(localStorage.getItem('zuppa:calSettings')||'{}').apiKey||''; }catch(e){ return ''; }
+      })();
       const headers = { 'Content-Type': 'application/json' };
-      if(calSettings.apiKey){
-        headers['x-api-key'] = calSettings.apiKey;
+      if(apiKey){
+        headers['x-api-key'] = apiKey;
         headers['anthropic-version'] = '2023-06-01';
         headers['anthropic-dangerous-direct-browser-access'] = 'true';
       }
