@@ -95,43 +95,6 @@
         <button class="btn btn-ghost btn-small" id="calConnectBtn" type="button" style="margin-top:8px;">Googleと連携する</button>
       </div>
 
-      <!-- イベント登録フォーム -->
-      <div class="panel">
-        <div class="panel-title">🗓️ イベント登録</div>
-        <p class="panel-sub">イベント名・日時を入力してGoogleカレンダーに登録します。</p>
-        <div class="field">
-          <label for="eventTitle">イベント名</label>
-          <input id="eventTitle" type="text" placeholder="例：ワークショップ">
-        </div>
-        <div class="field">
-          <label>開催日</label>
-          <input id="eventDate" type="date">
-        </div>
-        <div class="field">
-          <label>時間</label>
-          <div class="time-row">
-            <select id="eventTimeStart"></select>
-            <span class="time-sep">〜</span>
-            <select id="eventTimeEnd"></select>
-          </div>
-          <input id="eventTime" type="hidden">
-        </div>
-        <div class="field">
-          <label for="eventDesc">イベント概要</label>
-          <textarea id="eventDesc" placeholder="例：参加費・持ち物・場所の詳細など" style="min-height:80px;"></textarea>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
-          <button class="btn btn-primary" id="calAddEventBtn">📅 Googleカレンダーに登録</button>
-          <button class="btn btn-ghost btn-small" id="eventClear">日時をクリア</button>
-        </div>
-        <div class="status-line" id="calAddStatus"></div>
-      </div>
-
-    </div><!-- /left-col -->
-
-    <!-- 右カラム -->
-    <div class="right-col">
-
       <!-- Webサイト連携 -->
       <div class="panel">
         <div class="panel-title">
@@ -175,6 +138,43 @@
           </div>
           <div class="status-line" id="recoverStatus" style="margin-top:6px;"></div>
         </div>
+      </div>
+
+    </div><!-- /left-col -->
+
+    <!-- 右カラム -->
+    <div class="right-col">
+
+      <!-- イベント登録フォーム -->
+      <div class="panel">
+        <div class="panel-title">🗓️ イベント登録</div>
+        <p class="panel-sub">イベント名・日時を入力してGoogleカレンダーに登録します。</p>
+        <div class="field">
+          <label for="eventTitle">イベント名</label>
+          <input id="eventTitle" type="text" placeholder="例：ワークショップ">
+        </div>
+        <div class="field">
+          <label>開催日</label>
+          <input id="eventDate" type="date">
+        </div>
+        <div class="field">
+          <label>時間</label>
+          <div class="time-row">
+            <select id="eventTimeStart"></select>
+            <span class="time-sep">〜</span>
+            <select id="eventTimeEnd"></select>
+          </div>
+          <input id="eventTime" type="hidden">
+        </div>
+        <div class="field">
+          <label for="eventDesc">イベント概要</label>
+          <textarea id="eventDesc" placeholder="例：参加費・持ち物・場所の詳細など" style="min-height:80px;"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+          <button class="btn btn-primary" id="calAddEventBtn">📅 Googleカレンダーに登録</button>
+          <button class="btn btn-ghost btn-small" id="eventClear">日時をクリア</button>
+        </div>
+        <div class="status-line" id="calAddStatus"></div>
       </div>
 
     </div><!-- /right-col -->
