@@ -177,6 +177,47 @@
         <div class="status-line" id="calAddStatus"></div>
       </div>
 
+      <!-- イベント報告作成 -->
+      <div class="panel">
+        <div class="panel-title">📝 イベント報告作成</div>
+        <p class="panel-sub">開催したイベントの報告ページを作成してWebサイトに公開します。</p>
+        <div class="field">
+          <label for="repTitle">イベント名</label>
+          <input id="repTitle" type="text" placeholder="例：ワークショップ">
+        </div>
+        <div class="field">
+          <label>開催日</label>
+          <input id="repDate" type="date">
+        </div>
+        <div class="field">
+          <label>時間</label>
+          <div class="time-row">
+            <select id="repTimeStart"></select>
+            <span class="time-sep">〜</span>
+            <select id="repTimeEnd"></select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="repAttendees">参加人数</label>
+          <input id="repAttendees" type="number" min="1" placeholder="例：12">
+        </div>
+        <div class="field">
+          <label for="repBody">本文</label>
+          <textarea id="repBody" placeholder="イベントの内容・様子を入力してください" style="min-height:120px;"></textarea>
+        </div>
+        <div class="field">
+          <label>写真（複数選択可）</label>
+          <input id="repPhotos" type="file" accept="image/*" multiple style="font-size:12px;width:100%;cursor:pointer;">
+          <div id="repPhotoPreview" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+          <button class="btn btn-primary" id="repPublishBtn">📤 Netlifyに公開</button>
+          <button class="btn btn-ghost btn-small" id="repPreviewBtn">👁 プレビュー</button>
+          <button class="btn btn-ghost btn-small" id="repClearBtn">クリア</button>
+        </div>
+        <div class="status-line" id="repStatus"></div>
+      </div>
+
     </div><!-- /right-col -->
   </div>
 </div>
@@ -783,6 +824,187 @@ async function netlifyDeploy(filesToDeploy, statusEl){
   }
   if(!ready) throw new Error('デプロイのタイムアウト。Netlifyダッシュボードを確認してください。');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// イベント報告作成
+// ═══════════════════════════════════════════════════════════════════════════
+(function(){
+  // 時間プルダウンを再利用
+  document.getElementById('repTimeStart').innerHTML = timeOptionsHtml;
+  document.getElementById('repTimeEnd').innerHTML   = timeOptionsHtml;
+
+  // 写真プレビュー
+  document.getElementById('repPhotos').addEventListener('change', function(){
+    const preview = document.getElementById('repPhotoPreview');
+    preview.innerHTML = '';
+    for(const file of this.files){
+      const img = document.createElement('img');
+      img.style.cssText = 'width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border);';
+      img.src = URL.createObjectURL(file);
+      preview.appendChild(img);
+    }
+  });
+
+  function generateSlug(title, date){
+    const d = (date||'').replace(/-/g,'');
+    const t = (title||'event').trim()
+      .toLowerCase()
+      .replace(/[^\w\s-]/g,'')
+      .replace(/\s+/g,'-')
+      .slice(0,20) || 'event';
+    return d ? `${d}-${t}` : t;
+  }
+
+  function buildReportHTML({ title, dateStr, timeStart, timeEnd, attendees, body, photoFilenames, cssUrl }){
+    const dateDisp = (dateStr||'').replace(/-/g,'/');
+    const timeStr  = timeStart ? (timeEnd ? `${timeStart}〜${timeEnd}` : timeStart) : '';
+    const year     = new Date().getFullYear();
+    const bodyHtml = (body||'').split('\n').filter(l=>l.trim()).map(l=>`<p class="mb-4">${escapeHtml(l)}</p>`).join('');
+    const photosHtml = photoFilenames.length
+      ? `<div class="grid gap-4 mb-8">${photoFilenames.map(fn=>`<img src="./${fn}" alt="${escapeHtml(title)}" style="width:100%;border-radius:8px;">`).join('')}</div>`
+      : '';
+    return `<!DOCTYPE html>
+<html lang="ja"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(title)} | Salon de Zuppa</title>
+<link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="${cssUrl||'https://zuppa-lab.com/_astro/_slug_.BuG1PzdG.css'}">
+</head><body class="antialiased font-sans">
+<header class="fixed top-0 inset-x-0 z-50 bg-navy-800/95 backdrop-blur text-white">
+  <div class="max-w-6xl mx-auto px-5 py-3 flex items-center justify-between">
+    <a href="/salon/" class="font-serif text-lg tracking-wide shrink-0">Salon de Zuppa</a>
+    <nav class="hidden md:flex items-center gap-6 text-sm tracking-wide">
+      <a href="/salon/#about" class="hover:text-gold-500 transition-colors">about.</a>
+      <a href="/salon/#event" class="hover:text-gold-500 transition-colors">event.</a>
+      <a href="/salon/#access" class="hover:text-gold-500 transition-colors">access.</a>
+      <a href="/salon/#calendar" class="hover:text-gold-500 transition-colors">calendar.</a>
+    </nav>
+  </div>
+</header>
+<main>
+  <section class="max-w-3xl mx-auto px-5 py-20">
+    <a href="/salon/event/" class="text-xs text-navy-600 underline">← イベント一覧に戻る</a>
+    <h1 class="font-serif text-3xl font-bold mt-6 mb-4">${escapeHtml(title)}</h1>
+    <div class="flex gap-4 text-sm text-navy-900/50 mb-8">
+      ${dateDisp ? `<span>📅 ${dateDisp}</span>` : ''}
+      ${timeStr   ? `<span>🕐 ${timeStr}</span>`  : ''}
+      ${attendees ? `<span>👥 ${attendees}名</span>` : ''}
+    </div>
+    ${photosHtml}
+    <div class="leading-relaxed text-navy-800">${bodyHtml}</div>
+  </section>
+</main>
+<footer class="bg-navy-900 text-white/80 pt-14 pb-8">
+  <div class="max-w-6xl mx-auto px-5 grid gap-10 md:grid-cols-3">
+    <div><p class="font-serif text-lg text-white mb-4">Zuppa</p><p class="text-sm leading-relaxed text-white/60">東京・千駄ヶ谷と沖縄・石垣島で展開するレンタル／コワーキングスペース「Zuppaシリーズ」。株式会社ラストワンマイルが運営しています。</p></div>
+    <div><h3 class="text-xs tracking-widest text-white/40 mb-3">LOCATIONS</h3><ul class="space-y-2 text-sm"><li><a href="/salon/" class="hover:text-gold-500">Salon de Zuppa（東京・千駄ヶ谷）</a></li><li><a href="/ishigaki/" class="hover:text-gold-500">Zuppa-Ishigaki（石垣島）</a></li></ul></div>
+    <div><h3 class="text-xs tracking-widest text-white/40 mb-3">CONTACT</h3><p class="text-sm">運営：株式会社ラストワンマイル</p><a href="mailto:tanaka@lastonemile.co.jp" class="text-sm hover:text-gold-500">tanaka@lastonemile.co.jp</a></div>
+  </div>
+  <p class="text-center text-xs text-white/40 mt-10">© ${year} Zuppa / Last One Mile Inc.</p>
+</footer>
+</body></html>`;
+  }
+
+  async function getRepData(){
+    return {
+      title:     document.getElementById('repTitle').value.trim(),
+      dateStr:   document.getElementById('repDate').value,
+      timeStart: document.getElementById('repTimeStart').value,
+      timeEnd:   document.getElementById('repTimeEnd').value,
+      attendees: document.getElementById('repAttendees').value.trim(),
+      body:      document.getElementById('repBody').value.trim(),
+      files:     [...(document.getElementById('repPhotos').files||[])],
+    };
+  }
+
+  async function readFileAsBuffer(file){
+    return new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  async function buildDeployFiles(data){
+    const { title, dateStr, timeStart, timeEnd, attendees, body, files } = data;
+    const slug   = generateSlug(title, dateStr);
+    const cssUrl = publishSettings._cssUrl || await fetchSiteCSSUrl().catch(()=>null);
+    if(cssUrl) publishSettings._cssUrl = cssUrl;
+    const photoFilenames = files.map(f => f.name);
+    const htmlStr  = buildReportHTML({ title, dateStr, timeStart, timeEnd, attendees, body, photoFilenames, cssUrl });
+    const htmlBuf  = new TextEncoder().encode(htmlStr).buffer;
+    const deployFiles = [{ path:`/salon/event/${slug}/index.html`, buffer:htmlBuf }];
+    for(const file of files){
+      const buf = await readFileAsBuffer(file);
+      deployFiles.push({ path:`/salon/event/${slug}/${file.name}`, buffer:buf });
+    }
+    return { slug, deployFiles, htmlStr };
+  }
+
+  // プレビュー
+  document.getElementById('repPreviewBtn').addEventListener('click', async ()=>{
+    const statusEl = document.getElementById('repStatus');
+    statusEl.classList.remove('error');
+    const data = await getRepData();
+    if(!data.title){ statusEl.textContent = 'イベント名を入力してください。'; return; }
+    statusEl.textContent = '⏳ プレビューを生成中…';
+    try{
+      const { htmlStr } = await buildDeployFiles(data);
+      showPreviewOverlay(htmlStr);
+      statusEl.textContent = '';
+    }catch(e){ statusEl.textContent = '❌ ' + e.message; }
+  });
+
+  // 公開
+  document.getElementById('repPublishBtn').addEventListener('click', async ()=>{
+    const statusEl = document.getElementById('repStatus');
+    const btn      = document.getElementById('repPublishBtn');
+    statusEl.classList.remove('error');
+    const data = await getRepData();
+    if(!data.title)  { statusEl.textContent = 'イベント名を入力してください。';   statusEl.classList.add('error'); return; }
+    if(!data.dateStr){ statusEl.textContent = '開催日を入力してください。';       statusEl.classList.add('error'); return; }
+    if(!accessToken) { statusEl.textContent = '先にGoogleと連携してください。';   statusEl.classList.add('error'); return; }
+    if(!publishSettings.netlifyToken || !publishSettings.netlifySiteId){
+      statusEl.textContent = 'Netlify設定が必要です。'; statusEl.classList.add('error'); return;
+    }
+    btn.disabled = true;
+    statusEl.textContent = '⏳ ファイルを準備中…';
+    try{
+      const { slug, deployFiles } = await buildDeployFiles(data);
+      statusEl.textContent = '⏳ Netlifyにデプロイ中…';
+      await netlifyDeploy(deployFiles, statusEl);
+      // Sheetsに記録
+      if(publishSettings.sheetsId && accessToken){
+        try{
+          const dateDisp = (data.dateStr||'').replace(/-/g,'/');
+          await sheetsRequest('POST',
+            `/spreadsheets/${publishSettings.sheetsId}/values/Events!A:C:append?valueInputOption=USER_ENTERED`,
+            { values: [[dateDisp, slug, data.title]] }
+          );
+        }catch(e){ console.warn('Sheets記録失敗:', e); }
+      }
+      const url = `https://zuppa-lab.com/salon/event/${slug}/`;
+      statusEl.innerHTML = `✅ 公開しました！ <a href="${url}" target="_blank" style="color:var(--link);">${url}</a>`;
+    }catch(e){
+      statusEl.textContent = '❌ エラー: ' + e.message;
+      statusEl.classList.add('error');
+    }finally{
+      btn.disabled = false;
+    }
+  });
+
+  // クリア
+  document.getElementById('repClearBtn').addEventListener('click', ()=>{
+    ['repTitle','repDate','repAttendees','repBody'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('repTimeStart').value = '';
+    document.getElementById('repTimeEnd').value   = '';
+    document.getElementById('repPhotos').value    = '';
+    document.getElementById('repPhotoPreview').innerHTML = '';
+    const s = document.getElementById('repStatus');
+    s.textContent = ''; s.classList.remove('error');
+  });
+})();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INIT
