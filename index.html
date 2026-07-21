@@ -667,30 +667,36 @@ async function buildTopPage(sheetId){
     }
   }catch(e){}
 
-  // トップページHTML取得
-  const ctrl = new AbortController();
-  setTimeout(()=>ctrl.abort(), 8000);
-  const pr = await fetch('https://zuppa-lab.com/salon/',{signal:ctrl.signal});
-  if(!pr.ok) throw new Error('トップページ取得失敗: '+pr.status);
-  const html = await pr.text();
+  // トップページHTML取得（CORSエラー時はnullを返す）
+  let newHtml;
+  try{
+    const ctrl = new AbortController();
+    setTimeout(()=>ctrl.abort(), 8000);
+    const pr = await fetch('https://zuppa-lab.com/salon/',{signal:ctrl.signal});
+    if(!pr.ok) return null;
+    const html = await pr.text();
 
-  // id="event" セクション内の <div class="space-y-10 mb-10"> を置換
-  const sectionIdx = html.indexOf('id="event"');
-  if(sectionIdx===-1) throw new Error('eventセクションが見つかりません');
-  const divMarker = '<div class="space-y-10 mb-10">';
-  const divStart  = html.indexOf(divMarker, sectionIdx);
-  if(divStart===-1) throw new Error('イベントカードコンテナが見つかりません');
-  const contentStart = divStart + divMarker.length;
-  const contentEnd   = html.indexOf('</div>', contentStart);
+    // id="event" セクション内の <div class="space-y-10 mb-10"> を置換
+    const sectionIdx = html.indexOf('id="event"');
+    if(sectionIdx===-1) return null;
+    const divMarker = '<div class="space-y-10 mb-10">';
+    const divStart  = html.indexOf(divMarker, sectionIdx);
+    if(divStart===-1) return null;
+    const contentStart = divStart + divMarker.length;
+    const contentEnd   = html.indexOf('</div>', contentStart);
 
-  // 新カードを生成（既存CSSクラスをそのまま使用）
-  const newCards = latest.map(([date,slug,title])=>{
-    const desc = descMap[title]||'';
-    const descHtml = desc ? `<p class="text-sm text-navy-900/70 mt-2 leading-relaxed">${escapeHtml(desc)}</p>` : '';
-    return `<a href="/salon/event/${slug}" class="block group"><p class="text-xs text-navy-900/50 mb-1">${escapeHtml(date)}</p><h3 class="font-bold group-hover:underline">${escapeHtml(title)}</h3>${descHtml}</a>`;
-  }).join('');
+    // 新カードを生成（既存CSSクラスをそのまま使用）
+    const newCards = latest.map(([date,slug,title])=>{
+      const desc = descMap[title]||'';
+      const descHtml = desc ? `<p class="text-sm text-navy-900/70 mt-2 leading-relaxed">${escapeHtml(desc)}</p>` : '';
+      return `<a href="/salon/event/${slug}" class="block group"><p class="text-xs text-navy-900/50 mb-1">${escapeHtml(date)}</p><h3 class="font-bold group-hover:underline">${escapeHtml(title)}</h3>${descHtml}</a>`;
+    }).join('');
 
-  const newHtml = html.substring(0, contentStart) + newCards + html.substring(contentEnd);
+    newHtml = html.substring(0, contentStart) + newCards + html.substring(contentEnd);
+  }catch(e){
+    console.warn('トップページ取得失敗 (CORS?):', e);
+    return null;
+  }
   return new TextEncoder().encode(newHtml).buffer;
 }
 
@@ -711,12 +717,22 @@ document.getElementById('redeployListingBtn')?.addEventListener('click', async (
     const listingBuf = await buildListingFromSheets(publishSettings.sheetsId);
     statusEl.textContent = '⏳ トップページを更新中…';
     const topBuf = await buildTopPage(publishSettings.sheetsId);
-    statusEl.textContent = '⏳ Netlifyにデプロイ中…';
-    await netlifyDeploy([
+
+    // CORSを許可する _headers ファイル（初回デプロイで有効化、次回からトップページも更新可能に）
+    const headersContent = `/*\n  Access-Control-Allow-Origin: https://naobumitanaka.github.io\n`;
+    const headersBuf = new TextEncoder().encode(headersContent).buffer;
+
+    const filesToDeploy = [
       { path:'/salon/event/index.html', buffer:listingBuf },
-      { path:'/salon/index.html',       buffer:topBuf }
-    ], statusEl);
-    statusEl.textContent = '✅ 一覧ページとトップページを更新しました！';
+      { path:'/_headers',               buffer:headersBuf },
+    ];
+    if(topBuf) filesToDeploy.push({ path:'/salon/index.html', buffer:topBuf });
+
+    statusEl.textContent = '⏳ Netlifyにデプロイ中…';
+    await netlifyDeploy(filesToDeploy, statusEl);
+    statusEl.textContent = topBuf
+      ? '✅ 一覧ページとトップページを更新しました！'
+      : '✅ 一覧ページを更新しました。もう一度押すとトップページも更新されます。';
   }catch(e){
     statusEl.textContent = '❌ エラー: '+e.message;
   }finally{
