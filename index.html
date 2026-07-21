@@ -924,13 +924,13 @@ async function netlifyDeploy(filesToDeploy, statusEl){
     return d ? `${d}-${t}` : t;
   }
 
-  function buildReportHTML({ title, dateStr, timeStart, timeEnd, attendees, body, photoFilenames, cssUrl }){
+  function buildReportHTML({ title, dateStr, timeStart, timeEnd, attendees, body, photoUrls, cssUrl }){
     const dateDisp = (dateStr||'').replace(/-/g,'/');
     const timeStr  = timeStart ? (timeEnd ? `${timeStart}〜${timeEnd}` : timeStart) : '';
     const year     = new Date().getFullYear();
     const bodyHtml = (body||'').split('\n').filter(l=>l.trim()).map(l=>`<p class="mb-4">${escapeHtml(l)}</p>`).join('');
-    const photosHtml = photoFilenames.length
-      ? `<div class="grid gap-4 mb-8">${photoFilenames.map(fn=>`<img src="./${fn}" alt="${escapeHtml(title)}" style="width:100%;border-radius:8px;">`).join('')}</div>`
+    const photosHtml = (photoUrls||[]).length
+      ? `<div class="grid gap-4 mb-8">${photoUrls.map(url=>`<img src="${url}" alt="${escapeHtml(title)}" style="width:100%;border-radius:8px;">`).join('')}</div>`
       : '';
     return `<!DOCTYPE html>
 <html lang="ja"><head>
@@ -1001,14 +1001,18 @@ async function netlifyDeploy(filesToDeploy, statusEl){
     const cssUrl = publishSettings._cssUrl || await fetchSiteCSSUrl().catch(()=>null);
     if(cssUrl) publishSettings._cssUrl = cssUrl;
     const photoFilenames = files.map(f => f.name);
-    const htmlStr  = buildReportHTML({ title, dateStr, timeStart, timeEnd, attendees, body, photoFilenames, cssUrl });
+    // デプロイ用HTML：相対パス参照
+    const htmlStr  = buildReportHTML({ title, dateStr, timeStart, timeEnd, attendees, body, photoUrls: photoFilenames.map(fn=>`./${fn}`), cssUrl });
+    // プレビュー用HTML：Blob URL参照（写真がメモリ上にある間のみ有効）
+    const photoPreviewUrls = files.map(f => URL.createObjectURL(f));
+    const htmlStrPreview = buildReportHTML({ title, dateStr, timeStart, timeEnd, attendees, body, photoUrls: photoPreviewUrls, cssUrl });
     const htmlBuf  = new TextEncoder().encode(htmlStr).buffer;
     const deployFiles = [{ path:`/salon/event/${slug}/index.html`, buffer:htmlBuf }];
     for(const file of files){
       const buf = await readFileAsBuffer(file);
       deployFiles.push({ path:`/salon/event/${slug}/${file.name}`, buffer:buf });
     }
-    return { slug, deployFiles, htmlStr };
+    return { slug, deployFiles, htmlStr, htmlStrPreview };
   }
 
   // プレビュー
@@ -1019,8 +1023,8 @@ async function netlifyDeploy(filesToDeploy, statusEl){
     if(!data.title){ statusEl.textContent = 'イベント名を入力してください。'; return; }
     statusEl.textContent = '⏳ プレビューを生成中…';
     try{
-      const { htmlStr } = await buildDeployFiles(data);
-      showPreviewOverlay(htmlStr);
+      const { htmlStrPreview } = await buildDeployFiles(data);
+      showPreviewOverlay(htmlStrPreview);
       statusEl.textContent = '';
     }catch(e){ statusEl.textContent = '❌ ' + e.message; }
   });
