@@ -381,6 +381,18 @@
     flex-shrink:0;
   }
   .cal-dot.connected{background:#16A34A;}
+  /* --- Toast --- */
+  #zuppa-toast{
+    position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:#16A34A; color:#fff;
+    padding:12px 24px; border-radius:10px;
+    font-size:14px; font-weight:600;
+    box-shadow:0 4px 16px rgba(0,0,0,0.15);
+    opacity:0; pointer-events:none;
+    transition:opacity 0.3s, transform 0.3s;
+    z-index:9999; white-space:nowrap;
+  }
+  #zuppa-toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
   .btn-small{font-size:11.5px; padding:5px 11px;}
   .time-row{display:flex;align-items:center;gap:6px;margin-top:4px;}
   .time-select{
@@ -889,9 +901,19 @@
     els.calEditView.style.display = 'none';
     setCalStatus(false, '設定を保存しました。「Googleと連携する」を押して接続してください。');
   });
+  function showToast(msg, color){
+    let t = document.getElementById('zuppa-toast');
+    if(!t){ t = document.createElement('div'); t.id='zuppa-toast'; document.body.appendChild(t); }
+    t.textContent = msg;
+    t.style.background = color || '#16A34A';
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(()=>t.classList.remove('show'), 3000);
+  }
   function setCalStatus(connected, text){
     els.calDot.classList.toggle('connected', !!connected);
     els.calStatusText.textContent = text;
+    if(connected) showToast('✅ Googleカレンダーとの連携が成功しました');
   }
   function setupTokenClient(){
     if(!window.google || !google.accounts || !google.accounts.oauth2){
