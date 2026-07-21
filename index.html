@@ -667,12 +667,17 @@ async function buildTopPage(sheetId){
     }
   }catch(e){}
 
-  // トップページHTML取得（CORSエラー時はnullを返す）
+  // トップページHTML取得
+  // カスタムドメインはCORSブロックされるため、NetlifyデプロイのパーマリンクURL（*.netlify.app）を使用
   let newHtml;
   try{
+    const deploys = await netlifyFetch('GET',`/sites/${publishSettings.netlifySiteId}/deploys?state=ready&per_page=1`);
+    if(!deploys.length) return null;
+    const deployBase = deploys[0].deploy_ssl_url || deploys[0].ssl_url || '';
+    if(!deployBase) return null;
     const ctrl = new AbortController();
-    setTimeout(()=>ctrl.abort(), 8000);
-    const pr = await fetch('https://zuppa-lab.com/salon/',{signal:ctrl.signal});
+    setTimeout(()=>ctrl.abort(), 10000);
+    const pr = await fetch(deployBase + '/salon/', {signal:ctrl.signal});
     if(!pr.ok) return null;
     const html = await pr.text();
 
